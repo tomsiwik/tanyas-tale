@@ -5,19 +5,16 @@ import { Player } from './game/player.js';
 async function startGame() {
     // Initialize PIXI Application
     const app = new PIXI.Application();
-    await app.init(config);
-
-    // Add canvas to page and set its style
-    const canvas = app.canvas;
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    canvas.style.display = 'block';
-    document.querySelector('#app').appendChild(canvas);
-
-    // Handle window resize
-    window.addEventListener('resize', () => {
-        app.renderer.resize(window.innerWidth, window.innerHeight);
+    await app.init({
+        ...config,
+        backgroundAlpha: 1,
+        hello: true,
+        antialias: false,
+        fps: 24
     });
+
+    // Add canvas to page
+    document.querySelector('#app').appendChild(app.canvas);
 
     // Create player
     new Player(app);
