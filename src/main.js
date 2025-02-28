@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { config } from './game/config.js';
 import { Player } from './game/player.js';
+import { GameUI } from './game/ui.js';
 
 async function startGame() {
     // Initialize PIXI Application with simplified config
@@ -15,8 +16,14 @@ async function startGame() {
     // Add canvas to page
     document.querySelector('#app').appendChild(app.canvas);
 
+    // Hide the default cursor
+    app.canvas.style.cursor = 'none';
+
     // Create player
-    new Player(app);
+    const player = new Player(app);
+    
+    // Create UI
+    const ui = new GameUI(app);
 }
 
 // Start the game

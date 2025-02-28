@@ -53,3 +53,45 @@ export const AIM_POSITIONS = {
     [Direction.LEFT]: { x: 0, y: 12 },      // West
     [Direction.UP_LEFT]: { x: 0, y: 0 }     // Northwest
 };
+
+// UI configuration
+export const uiConfig = {
+    // Crosshair
+    crosshair: {
+        size: 24,         // Increased size for better visibility
+        thickness: 3,     // Increased thickness
+        gap: 6,           // Increased gap
+        color: 0xffffff,  // White color
+        alpha: 1.0        // Fully opaque
+    },
+    
+    // Experience bar
+    expBar: {
+        width: 0.9,       // 90% of screen width
+        height: 16,       // Increased height for better visibility
+        padding: 20,      // Padding from top/sides
+        backgroundColor: 0x333333,  // Dark gray background
+        fillColor: 0x00ff00,        // Green fill
+        borderColor: 0xffffff,      // White border
+        borderThickness: 1,         // Border thickness
+        textColor: 0xffffff,        // White text
+        fontSize: 14,               // Increased font size
+        fontFamily: 'Pixelify Sans', // Pixel font
+        startLevel: 1               // Starting level
+    },
+    
+    // Time bar (20 min countdown)
+    timeBar: {
+        width: 0.9,       // 90% of screen width
+        height: 16,       // Increased height for better visibility
+        padding: 20,      // Padding from bottom/sides
+        backgroundColor: 0x333333,  // Dark gray background
+        fillColor: 0x0088ff,        // Blue fill
+        borderColor: 0xffffff,      // White border
+        borderThickness: 1,         // Border thickness
+        textColor: 0xffffff,        // White text
+        fontSize: 14,               // Increased font size
+        fontFamily: 'Pixelify Sans', // Pixel font
+        totalTime: 20 * 60 * 1000   // 20 minutes in milliseconds
+    }
+};
