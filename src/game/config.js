@@ -13,11 +13,21 @@ export const config = {
 };
 
 export const playerConfig = {
-    size: 32, // Pixel-sized square
+    // Zoom and pixel settings
+    zoom: 1, // No zoom (1x) for half visual size
+    pixelSize: 1, // Base pixel size
+    
+    // Player settings
+    size: 32, // 32 logical pixels (will display as 32px with 1x zoom)
     color: 0xff0000, // Normal color (red)
     duckColor: 0x8B0000, // Duck color (dark red)
-    speed: 4, // Base speed for 24fps
-    duckSpeedMultiplier: 0.5, // Half speed when ducking
-    innerSize: 8, // 8x8 (1/4 of player size)
+    
+    // Movement settings
+    moveDelay: 1, // Minimal delay for maximum responsiveness
+    speed: 4, // 4 logical pixels per step for faster movement
+    duckSpeedMultiplier: 1, // No speed reduction when ducking
+    
+    // Direction indicator
+    innerSize: 8, // 8 logical pixels
     innerColor: 0xffff00 // Yellow for visibility
 };

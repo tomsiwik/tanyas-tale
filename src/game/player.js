@@ -14,16 +14,16 @@ const Direction = {
     NORTHWEST: 'northwest'
 };
 
-// Position lookup table (pixel-perfect positions for 8x8 inner square in 32x32 player)
+// Position lookup table for inner square (in logical pixels)
 const DirectionPositions = {
-    [Direction.NORTH]: { x: 12, y: 0 },    // Centered horizontally, top edge
-    [Direction.NORTHEAST]: { x: 24, y: 0 }, // Right top corner
-    [Direction.EAST]: { x: 24, y: 12 },    // Right edge, centered vertically
+    [Direction.NORTH]: { x: 12, y: 0 },     // Centered horizontally, top edge
+    [Direction.NORTHEAST]: { x: 24, y: 0 },  // Right top corner
+    [Direction.EAST]: { x: 24, y: 12 },     // Right edge, centered vertically
     [Direction.SOUTHEAST]: { x: 24, y: 24 }, // Right bottom corner
-    [Direction.SOUTH]: { x: 12, y: 24 },    // Centered horizontally, bottom edge
-    [Direction.SOUTHWEST]: { x: 0, y: 24 }, // Left bottom corner
-    [Direction.WEST]: { x: 0, y: 12 },     // Left edge, centered vertically
-    [Direction.NORTHWEST]: { x: 0, y: 0 }   // Left top corner
+    [Direction.SOUTH]: { x: 12, y: 24 },     // Centered horizontally, bottom edge
+    [Direction.SOUTHWEST]: { x: 0, y: 24 },  // Left bottom corner
+    [Direction.WEST]: { x: 0, y: 12 },       // Left edge, centered vertically
+    [Direction.NORTHWEST]: { x: 0, y: 0 }    // Left top corner
 };
 
 export class Player {
@@ -31,12 +31,17 @@ export class Player {
         this.app = app;
         this.isDucking = false;
         this.currentDirection = null;
+        
+        // Movement control variables - separate for horizontal and vertical
+        this.horizontalMoveCounter = 0;
+        this.verticalMoveCounter = 0;
+        
         console.log('Creating player sprite');
         
         // Create container for player elements
         this.container = new PIXI.Container();
         
-        // Create main square
+        // Create main square (logical pixels, will be scaled by zoom)
         this.sprite = new PIXI.Graphics()
             .rect(0, 0, playerConfig.size, playerConfig.size)
             .fill(playerConfig.color);
@@ -51,9 +56,10 @@ export class Player {
         this.container.addChild(this.sprite);
         this.container.addChild(this.innerSprite);
 
-        // Set initial position to center
-        const centerX = (app.screen.width - playerConfig.size) / 2;
-        const centerY = (app.screen.height - playerConfig.size) / 2;
+        // Set initial position to center (in logical pixels)
+        // We divide by zoom since the stage is scaled
+        const centerX = Math.floor((app.screen.width / playerConfig.zoom - playerConfig.size) / 2);
+        const centerY = Math.floor((app.screen.height / playerConfig.zoom - playerConfig.size) / 2);
         this.container.x = centerX;
         this.container.y = centerY;
 
@@ -78,11 +84,15 @@ export class Player {
 
     getDirectionFromMouse() {
         const mouse = input.getMousePosition();
+        // Convert mouse position to logical pixels
+        const logicalMouseX = mouse.x / playerConfig.zoom;
+        const logicalMouseY = mouse.y / playerConfig.zoom;
+        
         const playerCenterX = this.container.x + playerConfig.size / 2;
         const playerCenterY = this.container.y + playerConfig.size / 2;
 
-        const dx = mouse.x - playerCenterX;
-        const dy = mouse.y - playerCenterY;
+        const dx = logicalMouseX - playerCenterX;
+        const dy = logicalMouseY - playerCenterY;
 
         // Simple quadrant-based direction lookup
         const isNorth = dy < -playerConfig.size;
@@ -126,19 +136,33 @@ export class Player {
         this.updateDuckState();
         this.updateInnerSquarePosition();
         const speed = this.getCurrentSpeed();
-
-        // Update position based on input
-        if (input.isMovingLeft() && this.container.x > 0) {
-            this.container.x -= speed;
+        
+        // Handle horizontal movement
+        if (this.horizontalMoveCounter > 0) {
+            this.horizontalMoveCounter--;
+        } else {
+            // Check horizontal movement
+            if (input.isMovingLeft() && this.container.x > 0) {
+                this.container.x = Math.floor(this.container.x - speed);
+                this.horizontalMoveCounter = playerConfig.moveDelay;
+            } else if (input.isMovingRight() && this.container.x < this.app.screen.width / playerConfig.zoom - playerConfig.size) {
+                this.container.x = Math.floor(this.container.x + speed);
+                this.horizontalMoveCounter = playerConfig.moveDelay;
+            }
         }
-        if (input.isMovingRight() && this.container.x < this.app.screen.width - playerConfig.size) {
-            this.container.x += speed;
-        }
-        if (input.isMovingUp() && this.container.y > 0) {
-            this.container.y -= speed;
-        }
-        if (input.isMovingDown() && this.container.y < this.app.screen.height - playerConfig.size) {
-            this.container.y += speed;
+        
+        // Handle vertical movement separately
+        if (this.verticalMoveCounter > 0) {
+            this.verticalMoveCounter--;
+        } else {
+            // Check vertical movement
+            if (input.isMovingUp() && this.container.y > 0) {
+                this.container.y = Math.floor(this.container.y - speed);
+                this.verticalMoveCounter = playerConfig.moveDelay;
+            } else if (input.isMovingDown() && this.container.y < this.app.screen.height / playerConfig.zoom - playerConfig.size) {
+                this.container.y = Math.floor(this.container.y + speed);
+                this.verticalMoveCounter = playerConfig.moveDelay;
+            }
         }
     }
 }
