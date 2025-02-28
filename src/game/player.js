@@ -1,47 +1,27 @@
 import * as PIXI from 'pixi.js';
-import { config, playerConfig } from './config.js';
+import { playerConfig, Direction, AIM_POSITIONS } from './config.js';
 import { input } from './input.js';
 
-// Simple direction states
-const Direction = {
-    NORTH: 'north',
-    NORTHEAST: 'northeast',
-    EAST: 'east',
-    SOUTHEAST: 'southeast',
-    SOUTH: 'south',
-    SOUTHWEST: 'southwest',
-    WEST: 'west',
-    NORTHWEST: 'northwest'
-};
-
-// Position lookup table for inner square (in logical pixels)
-const DirectionPositions = {
-    [Direction.NORTH]: { x: 12, y: 0 },     // Centered horizontally, top edge
-    [Direction.NORTHEAST]: { x: 24, y: 0 },  // Right top corner
-    [Direction.EAST]: { x: 24, y: 12 },     // Right edge, centered vertically
-    [Direction.SOUTHEAST]: { x: 24, y: 24 }, // Right bottom corner
-    [Direction.SOUTH]: { x: 12, y: 24 },     // Centered horizontally, bottom edge
-    [Direction.SOUTHWEST]: { x: 0, y: 24 },  // Left bottom corner
-    [Direction.WEST]: { x: 0, y: 12 },       // Left edge, centered vertically
-    [Direction.NORTHWEST]: { x: 0, y: 0 }    // Left top corner
-};
+// Simple player state class
+class PlayerState {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.moveDirection = Direction.NONE;
+        this.aimDirection = Direction.NONE;
+        this.isDucking = false;
+    }
+}
 
 export class Player {
     constructor(app) {
         this.app = app;
-        this.isDucking = false;
-        this.currentDirection = null;
-        
-        // Movement control variables - separate for horizontal and vertical
-        this.horizontalMoveCounter = 0;
-        this.verticalMoveCounter = 0;
-        
         console.log('Creating player sprite');
         
         // Create container for player elements
         this.container = new PIXI.Container();
         
-        // Create main square (logical pixels, will be scaled by zoom)
+        // Create main square
         this.sprite = new PIXI.Graphics()
             .rect(0, 0, playerConfig.size, playerConfig.size)
             .fill(playerConfig.color);
@@ -56,12 +36,16 @@ export class Player {
         this.container.addChild(this.sprite);
         this.container.addChild(this.innerSprite);
 
-        // Set initial position to center (in logical pixels)
-        // We divide by zoom since the stage is scaled
-        const centerX = Math.floor((app.screen.width / playerConfig.zoom - playerConfig.size) / 2);
-        const centerY = Math.floor((app.screen.height / playerConfig.zoom - playerConfig.size) / 2);
-        this.container.x = centerX;
-        this.container.y = centerY;
+        // Set initial position to center
+        const centerX = Math.floor((app.screen.width - playerConfig.size) / 2);
+        const centerY = Math.floor((app.screen.height - playerConfig.size) / 2);
+        
+        // Initialize player state
+        this.state = new PlayerState(centerX, centerY);
+        
+        // Set initial container position
+        this.container.x = this.state.x;
+        this.container.y = this.state.y;
 
         // Add container to stage
         app.stage.addChild(this.container);
@@ -73,50 +57,54 @@ export class Player {
 
     updateDuckState() {
         const newDuckState = input.isDucking();
-        if (this.isDucking !== newDuckState) {
-            this.isDucking = newDuckState;
+        if (this.state.isDucking !== newDuckState) {
+            this.state.isDucking = newDuckState;
             // Clear and redraw with new color
             this.sprite.clear()
                 .rect(0, 0, playerConfig.size, playerConfig.size)
-                .fill(this.isDucking ? playerConfig.duckColor : playerConfig.color);
+                .fill(this.state.isDucking ? playerConfig.duckColor : playerConfig.color);
         }
     }
 
-    getDirectionFromMouse() {
+    getAimDirectionFromMouse() {
         const mouse = input.getMousePosition();
-        // Convert mouse position to logical pixels
-        const logicalMouseX = mouse.x / playerConfig.zoom;
-        const logicalMouseY = mouse.y / playerConfig.zoom;
+        const playerCenterX = this.state.x + playerConfig.size / 2;
+        const playerCenterY = this.state.y + playerConfig.size / 2;
+
+        const dx = mouse.x - playerCenterX;
+        const dy = mouse.y - playerCenterY;
         
-        const playerCenterX = this.container.x + playerConfig.size / 2;
-        const playerCenterY = this.container.y + playerConfig.size / 2;
-
-        const dx = logicalMouseX - playerCenterX;
-        const dy = logicalMouseY - playerCenterY;
-
-        // Simple quadrant-based direction lookup
-        const isNorth = dy < -playerConfig.size;
-        const isSouth = dy > playerConfig.size;
-        const isEast = dx > playerConfig.size;
-        const isWest = dx < -playerConfig.size;
-
-        if (isNorth && isEast) return Direction.NORTHEAST;
-        if (isNorth && isWest) return Direction.NORTHWEST;
-        if (isSouth && isEast) return Direction.SOUTHEAST;
-        if (isSouth && isWest) return Direction.SOUTHWEST;
-        if (isNorth) return Direction.NORTH;
-        if (isSouth) return Direction.SOUTH;
-        if (isEast) return Direction.EAST;
-        if (isWest) return Direction.WEST;
-        return null;
+        // Return NONE if mouse is near center
+        const minDistance = playerConfig.size;
+        if (Math.abs(dx) < minDistance && Math.abs(dy) < minDistance) {
+            return Direction.NONE;
+        }
+        
+        // Determine primary direction based on angle
+        const angle = Math.atan2(dy, dx);
+        const PI_8 = Math.PI / 8;
+        
+        // Use angle to determine direction (8 directions)
+        if (angle > -PI_8 && angle <= PI_8) return Direction.RIGHT;
+        if (angle > PI_8 && angle <= 3 * PI_8) return Direction.DOWN_RIGHT;
+        if (angle > 3 * PI_8 && angle <= 5 * PI_8) return Direction.DOWN;
+        if (angle > 5 * PI_8 && angle <= 7 * PI_8) return Direction.DOWN_LEFT;
+        if (angle > 7 * PI_8 || angle <= -7 * PI_8) return Direction.LEFT;
+        if (angle > -7 * PI_8 && angle <= -5 * PI_8) return Direction.UP_LEFT;
+        if (angle > -5 * PI_8 && angle <= -3 * PI_8) return Direction.UP;
+        if (angle > -3 * PI_8 && angle <= -PI_8) return Direction.UP_RIGHT;
+        
+        return Direction.NONE; // Fallback
     }
 
-    updateInnerSquarePosition() {
-        const newDirection = this.getDirectionFromMouse();
-        if (this.currentDirection !== newDirection) {
-            this.currentDirection = newDirection;
-            if (newDirection) {
-                const pos = DirectionPositions[newDirection];
+    updateAimPosition() {
+        const newAimDirection = this.getAimDirectionFromMouse();
+        if (this.state.aimDirection !== newAimDirection) {
+            this.state.aimDirection = newAimDirection;
+            
+            // Use lookup table to get position
+            if (newAimDirection !== Direction.NONE) {
+                const pos = AIM_POSITIONS[newAimDirection];
                 this.innerSprite.x = pos.x;
                 this.innerSprite.y = pos.y;
                 this.innerSprite.visible = true;
@@ -126,43 +114,37 @@ export class Player {
         }
     }
 
-    getCurrentSpeed() {
-        return this.isDucking 
+    update() {
+        // Update duck state
+        this.updateDuckState();
+        
+        // Update aim position
+        this.updateAimPosition();
+        
+        // Get current movement direction from input
+        this.state.moveDirection = input.getDirection();
+        
+        // Calculate speed based on duck state
+        const speed = this.state.isDucking 
             ? playerConfig.speed * playerConfig.duckSpeedMultiplier 
             : playerConfig.speed;
-    }
-
-    update() {
-        this.updateDuckState();
-        this.updateInnerSquarePosition();
-        const speed = this.getCurrentSpeed();
         
-        // Handle horizontal movement
-        if (this.horizontalMoveCounter > 0) {
-            this.horizontalMoveCounter--;
-        } else {
-            // Check horizontal movement
-            if (input.isMovingLeft() && this.container.x > 0) {
-                this.container.x = Math.floor(this.container.x - speed);
-                this.horizontalMoveCounter = playerConfig.moveDelay;
-            } else if (input.isMovingRight() && this.container.x < this.app.screen.width / playerConfig.zoom - playerConfig.size) {
-                this.container.x = Math.floor(this.container.x + speed);
-                this.horizontalMoveCounter = playerConfig.moveDelay;
-            }
+        // Apply movement based on direction using bitwise checks
+        if (this.state.moveDirection & Direction.LEFT && this.state.x > 0) {
+            this.state.x -= speed;
+        }
+        if (this.state.moveDirection & Direction.RIGHT && this.state.x < this.app.screen.width - playerConfig.size) {
+            this.state.x += speed;
+        }
+        if (this.state.moveDirection & Direction.UP && this.state.y > 0) {
+            this.state.y -= speed;
+        }
+        if (this.state.moveDirection & Direction.DOWN && this.state.y < this.app.screen.height - playerConfig.size) {
+            this.state.y += speed;
         }
         
-        // Handle vertical movement separately
-        if (this.verticalMoveCounter > 0) {
-            this.verticalMoveCounter--;
-        } else {
-            // Check vertical movement
-            if (input.isMovingUp() && this.container.y > 0) {
-                this.container.y = Math.floor(this.container.y - speed);
-                this.verticalMoveCounter = playerConfig.moveDelay;
-            } else if (input.isMovingDown() && this.container.y < this.app.screen.height / playerConfig.zoom - playerConfig.size) {
-                this.container.y = Math.floor(this.container.y + speed);
-                this.verticalMoveCounter = playerConfig.moveDelay;
-            }
-        }
+        // Update container position
+        this.container.x = Math.floor(this.state.x);
+        this.container.y = Math.floor(this.state.y);
     }
 }

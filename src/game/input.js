@@ -1,23 +1,12 @@
+import { Direction } from './config.js';
+
 class InputHandler {
     constructor() {
-        // Key state tracking
-        this.keys = {
-            ArrowLeft: false,
-            ArrowRight: false,
-            ArrowUp: false,
-            ArrowDown: false,
-            'a': false,
-            'd': false,
-            'w': false,
-            's': false,
-        };
-        
-        // Track the last pressed direction key for movement priority
-        this.lastHorizontalKey = null;
-        this.lastVerticalKey = null;
+        // Use a Set to track pressed keys
+        this.keyState = new Set();
         
         // Duck state (toggle)
-        this.duckState = false;
+        this.duckToggle = false;
         this.shiftJustPressed = false;
         
         // Mouse position
@@ -25,45 +14,28 @@ class InputHandler {
         this.mouseY = 0;
 
         // Set up event listeners
-        window.addEventListener('keydown', (e) => this.handleKeyDown(e));
-        window.addEventListener('keyup', (e) => this.handleKeyUp(e));
-        window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        window.addEventListener('keydown', this.handleKeyDown.bind(this));
+        window.addEventListener('keyup', this.handleKeyUp.bind(this));
+        window.addEventListener('mousemove', this.handleMouseMove.bind(this));
         
         // Add blur event to reset keys when window loses focus
-        window.addEventListener('blur', () => this.resetAllKeys());
+        window.addEventListener('blur', this.reset.bind(this));
     }
 
-    resetAllKeys() {
+    reset() {
         // Reset all key states when window loses focus
-        Object.keys(this.keys).forEach(key => {
-            this.keys[key] = false;
-        });
-        this.lastHorizontalKey = null;
-        this.lastVerticalKey = null;
+        this.keyState.clear();
         this.shiftJustPressed = false;
     }
 
     handleKeyDown(e) {
-        // Update key state
-        if (this.keys.hasOwnProperty(e.key)) {
-            this.keys[e.key] = true;
-            
-            // Update last pressed key for movement priority
-            if (e.key === 'ArrowLeft' || e.key === 'a') {
-                this.lastHorizontalKey = e.key;
-            } else if (e.key === 'ArrowRight' || e.key === 'd') {
-                this.lastHorizontalKey = e.key;
-            } else if (e.key === 'ArrowUp' || e.key === 'w') {
-                this.lastVerticalKey = e.key;
-            } else if (e.key === 'ArrowDown' || e.key === 's') {
-                this.lastVerticalKey = e.key;
-            }
-        }
+        // Add key to pressed keys set
+        this.keyState.add(e.key);
         
         // Toggle duck state on Shift press (without repeat)
         if (e.key === 'Shift' && !e.repeat && !this.shiftJustPressed) {
             this.shiftJustPressed = true;
-            this.duckState = !this.duckState;
+            this.duckToggle = !this.duckToggle;
             
             // Reset shift pressed flag after a short delay
             setTimeout(() => {
@@ -73,41 +45,8 @@ class InputHandler {
     }
 
     handleKeyUp(e) {
-        // Update key state
-        if (this.keys.hasOwnProperty(e.key)) {
-            this.keys[e.key] = false;
-            
-            // Clear last pressed key if it was this one
-            if ((e.key === 'ArrowLeft' || e.key === 'a') && this.lastHorizontalKey === e.key) {
-                // Set to the other key if it's still pressed
-                if (this.keys.ArrowLeft) this.lastHorizontalKey = 'ArrowLeft';
-                else if (this.keys.a) this.lastHorizontalKey = 'a';
-                else if (this.keys.ArrowRight) this.lastHorizontalKey = 'ArrowRight';
-                else if (this.keys.d) this.lastHorizontalKey = 'd';
-                else this.lastHorizontalKey = null;
-            } 
-            else if ((e.key === 'ArrowRight' || e.key === 'd') && this.lastHorizontalKey === e.key) {
-                if (this.keys.ArrowRight) this.lastHorizontalKey = 'ArrowRight';
-                else if (this.keys.d) this.lastHorizontalKey = 'd';
-                else if (this.keys.ArrowLeft) this.lastHorizontalKey = 'ArrowLeft';
-                else if (this.keys.a) this.lastHorizontalKey = 'a';
-                else this.lastHorizontalKey = null;
-            }
-            else if ((e.key === 'ArrowUp' || e.key === 'w') && this.lastVerticalKey === e.key) {
-                if (this.keys.ArrowUp) this.lastVerticalKey = 'ArrowUp';
-                else if (this.keys.w) this.lastVerticalKey = 'w';
-                else if (this.keys.ArrowDown) this.lastVerticalKey = 'ArrowDown';
-                else if (this.keys.s) this.lastVerticalKey = 's';
-                else this.lastVerticalKey = null;
-            }
-            else if ((e.key === 'ArrowDown' || e.key === 's') && this.lastVerticalKey === e.key) {
-                if (this.keys.ArrowDown) this.lastVerticalKey = 'ArrowDown';
-                else if (this.keys.s) this.lastVerticalKey = 's';
-                else if (this.keys.ArrowUp) this.lastVerticalKey = 'ArrowUp';
-                else if (this.keys.w) this.lastVerticalKey = 'w';
-                else this.lastVerticalKey = null;
-            }
-        }
+        // Remove key from pressed keys set
+        this.keyState.delete(e.key);
     }
 
     handleMouseMove(e) {
@@ -115,29 +54,21 @@ class InputHandler {
         this.mouseY = e.clientY;
     }
 
-    // Movement direction methods with priority handling
-    isMovingLeft() {
-        // Check if left is the last horizontal direction pressed
-        return this.lastHorizontalKey === 'ArrowLeft' || this.lastHorizontalKey === 'a';
-    }
-
-    isMovingRight() {
-        // Check if right is the last horizontal direction pressed
-        return this.lastHorizontalKey === 'ArrowRight' || this.lastHorizontalKey === 'd';
-    }
-
-    isMovingUp() {
-        // Check if up is the last vertical direction pressed
-        return this.lastVerticalKey === 'ArrowUp' || this.lastVerticalKey === 'w';
-    }
-
-    isMovingDown() {
-        // Check if down is the last vertical direction pressed
-        return this.lastVerticalKey === 'ArrowDown' || this.lastVerticalKey === 's';
+    // Get movement direction using bitwise operations
+    getDirection() {
+        let dir = Direction.NONE;
+        
+        // Build direction using bitwise OR
+        if (this.keyState.has('ArrowUp') || this.keyState.has('w')) dir |= Direction.UP;
+        if (this.keyState.has('ArrowRight') || this.keyState.has('d')) dir |= Direction.RIGHT;
+        if (this.keyState.has('ArrowDown') || this.keyState.has('s')) dir |= Direction.DOWN;
+        if (this.keyState.has('ArrowLeft') || this.keyState.has('a')) dir |= Direction.LEFT;
+        
+        return dir;
     }
 
     isDucking() {
-        return this.duckState;
+        return this.duckToggle;
     }
 
     getMousePosition() {
@@ -145,4 +76,5 @@ class InputHandler {
     }
 }
 
+// Single instance for the entire game
 export const input = new InputHandler();
