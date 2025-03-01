@@ -45,6 +45,13 @@ This approach follows pixel game best practices by:
    - Current configuration: 0.5-5 damage (half the original strength)
    - Can be easily modified or replaced with other skills
 
+2. **Cone Attack Skill**
+   - Creates a cone-shaped attack in the direction the player is aiming
+   - Shows a transparent yellow cone visual to indicate the attack area
+   - Flashes slightly every second when it activates
+   - Damages all bots within the cone hitbox (20 damage per hit)
+   - Has a 1-second cooldown between attacks
+
 ### Bot Skills
 1. **Regeneration Skill**
    - Heals the bot by 1 HP per second
@@ -83,3 +90,9 @@ This approach follows pixel game best practices by:
 - Bots maintain minimum distance from the player
 - Bots avoid overlapping with other bots
 - Uses vector-based repulsion for natural movement
+
+### Visual Effects
+- Cone Attack skill shows a transparent yellow cone
+- The cone flashes brighter when the skill activates
+- The cone rotates to match the player's aim direction
+- Efficient rendering using PixiJS Graphics

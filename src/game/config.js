@@ -85,6 +85,23 @@ export const botConfig = {
     fadeDuration: 1 * 60,  // 1 second at 60fps
 };
 
+// Cone attack skill configuration
+export const coneAttackConfig = {
+    // Visual settings
+    coneLength: 400, // Length of the cone
+    coneAngle: Math.PI / 3, // 60 degrees in radians
+    coneColor: 0xffffff, // White color
+    coneAlpha: 0.25, // More transparent for normal state
+    flashAlpha: 0.95, // More prominent flash
+    
+    // Gameplay settings
+    damage: 40, // Doubled damage (was 20)
+    cooldown: 1000, // 1 second cooldown
+    
+    // Flash animation
+    flashDuration: 200, // Flash duration in ms
+};
+
 // Direction enum using bitwise flags for efficient checks
 export const Direction = {
     NONE: 0,
@@ -110,6 +127,19 @@ export const AIM_POSITIONS = {
     [Direction.DOWN_LEFT]: { x: 0, y: 24 }, // Southwest
     [Direction.LEFT]: { x: 0, y: 12 },      // West
     [Direction.UP_LEFT]: { x: 0, y: 0 }     // Northwest
+};
+
+// Direction to angle mapping (in radians)
+export const DIRECTION_ANGLES = {
+    [Direction.NONE]: 0,
+    [Direction.RIGHT]: 0,
+    [Direction.DOWN_RIGHT]: Math.PI / 4,
+    [Direction.DOWN]: Math.PI / 2,
+    [Direction.DOWN_LEFT]: 3 * Math.PI / 4,
+    [Direction.LEFT]: Math.PI,
+    [Direction.UP_LEFT]: 5 * Math.PI / 4,
+    [Direction.UP]: 3 * Math.PI / 2,
+    [Direction.UP_RIGHT]: 7 * Math.PI / 4
 };
 
 // UI configuration

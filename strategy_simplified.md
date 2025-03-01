@@ -268,6 +268,42 @@ class RegenerationSkill extends Skill {
 }
 ```
 
+#### Cone Attack Skill
+```javascript
+class ConeAttackSkill extends Skill {
+    constructor(owner, config = {}) {
+        super(owner, {
+            coneLength: 200,
+            coneAngle: Math.PI / 4, // 45 degrees
+            damage: 20,
+            cooldown: 1000, // 1 second
+            ...config
+        });
+        
+        // Create visual representation
+        this.createConeVisual();
+    }
+    
+    apply(delta, targets) {
+        // Make cone visible and flash
+        this.startFlash();
+        
+        // Apply damage to all targets in cone
+        for (const target of targets) {
+            if (this.isPointInCone(target.getPosition())) {
+                target.takeDamage(this.config.damage);
+            }
+        }
+    }
+    
+    isPointInCone(point) {
+        // Convert to local coordinates
+        // Check if point is within cone angle and distance
+        // Return true if in cone, false otherwise
+    }
+}
+```
+
 ## Object Pooling System
 
 To optimize performance for large numbers of entities, we've implemented object pooling:
@@ -300,3 +336,4 @@ These architectural improvements provide:
 3. More maintainable and extensible code
 4. Modular skill system for gameplay mechanics
 5. Optimized memory usage with object pooling
+6. Visual feedback for player skills

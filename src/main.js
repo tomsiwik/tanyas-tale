@@ -4,7 +4,7 @@ import { Player } from './game/player.js';
 import { BotManager } from './game/bot.js';
 import { EffectManager } from './game/effects.js';
 import { GameUI } from './game/ui.js';
-import { ProximityDamageSkill } from './game/skills.js';
+import { ProximityDamageSkill, ConeAttackSkill } from './game/skills.js';
 
 async function startGame() {
     // Initialize PIXI Application with simplified config
@@ -42,6 +42,11 @@ async function startGame() {
         effectManager: effectManager
     }));
     
+    // Add cone attack skill to player
+    player.skillManager.addSkill(new ConeAttackSkill(player, {
+        effectManager: effectManager
+    }));
+    
     // Create UI
     const ui = new GameUI(app);
     
@@ -60,7 +65,7 @@ async function startGame() {
     // Log performance info
     console.log(`Game initialized with ${botConfig.spawnCount} bots`);
     console.log(`Target FPS: ${config.fps}`);
-    console.log('Player skills: Proximity Damage');
+    console.log('Player skills: Proximity Damage, Cone Attack');
     console.log('Bot skills: Regeneration');
 }
 

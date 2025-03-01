@@ -12,6 +12,7 @@ class PlayerState {
         this.aimDirection = Direction.NONE;
         this.isDucking = false;
         this.health = playerConfig.maxHealth;
+        this.size = playerConfig.size; // Add size property for skills to access
     }
 }
 

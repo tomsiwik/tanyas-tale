@@ -15,16 +15,13 @@ class ObjectPool {
     }
     
     get() {
-        // Return an object from the pool or create a new one if empty
         return this.pool.length > 0 ? this.pool.pop() : this.factory();
     }
     
     release(object) {
-        // Return object to the pool for reuse
         this.pool.push(object);
     }
     
-    // Pre-allocate more objects if needed
     preAllocate(count) {
         for (let i = 0; i < count; i++) {
             this.pool.push(this.factory());
@@ -42,7 +39,6 @@ class BotState {
         this.aimDirection = Direction.NONE;
     }
     
-    // Reset state for reuse
     reset() {
         this.health = botConfig.maxHealth;
         this.active = false;
@@ -67,7 +63,7 @@ export class Bot {
         this.innerSprite = new PIXI.Graphics()
             .rect(0, 0, botConfig.innerSize, botConfig.innerSize)
             .fill(botConfig.innerColor);
-        this.innerSprite.visible = true; // Always show aim indicator
+        this.innerSprite.visible = true;
 
         // Create health bar container
         this.healthBarContainer = new PIXI.Container();
@@ -112,7 +108,6 @@ export class Bot {
         this.container.visible = false;
     }
 
-    // Initialize bot with position
     init(x, y, stage) {
         // Set position
         this.state.x = x;
@@ -238,7 +233,9 @@ export class Bot {
         
         if (this.state.health <= 0) {
             // Create death effect at bot's position
-            effectManager.createDeathEffect(this.state.x, this.state.y);
+            if (effectManager) {
+                effectManager.createDeathEffect(this.state.x, this.state.y);
+            }
             
             // Deactivate bot
             this.deactivate();
@@ -267,7 +264,6 @@ export class Bot {
         };
     }
 
-    // Calculate distance to another entity
     distanceTo(entity) {
         const pos1 = this.getPosition();
         const pos2 = entity.getPosition();
@@ -276,12 +272,10 @@ export class Bot {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    // Check if this bot is colliding with another entity
     isCollidingWith(entity, minDistance) {
         return this.distanceTo(entity) < minDistance;
     }
 
-    // Move towards a target position while avoiding collisions
     moveTowards(targetX, targetY, otherBots) {
         if (!this.state.active) return;
         
@@ -428,12 +422,10 @@ export class BotManager {
         }
     }
     
-    // Pre-allocate bots for performance
     preAllocate(count) {
         this.botPool.preAllocate(count);
     }
     
-    // Get all active bots
     getActiveBots() {
         return this.activeBots;
     }

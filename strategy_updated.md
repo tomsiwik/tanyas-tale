@@ -62,6 +62,13 @@ The skill system provides a flexible way to add behaviors to entities:
    - Heals the bot by 1 HP per second
    - Uses cooldown system for timed healing
 
+3. **Cone Attack Skill** (Player)
+   - Creates a cone-shaped attack in the direction the player is aiming
+   - Shows a transparent yellow cone visual to indicate the attack area
+   - Flashes slightly every second when it activates
+   - Damages all bots within the cone hitbox (20 damage per hit)
+   - Has a 1-second cooldown between attacks
+
 ### Visual Effects
 
 #### Death Effects
@@ -69,6 +76,11 @@ The skill system provides a flexible way to add behaviors to entities:
 - Death effect shows a black square for 2 seconds
 - After 2 seconds, it fades away over 1 second
 - Managed by a dedicated EffectManager
+
+#### Skill Visuals
+- Cone Attack skill shows a transparent yellow cone
+- The cone flashes brighter when the skill activates
+- The cone rotates to match the player's aim direction
 
 ### Collision System
 
@@ -131,7 +143,10 @@ The game currently features:
 - Player movement and aiming
 - Bot spawning and AI
 - Health system for player and bots
-- Skill system with proximity damage and regeneration
+- Skill system with multiple skills:
+  - Proximity damage (passive area damage)
+  - Cone attack (directional area damage)
+  - Regeneration (healing over time)
 - Death effects with animation
 - UI elements (health bars, experience bar, time bar)
 - Object pooling for performance
