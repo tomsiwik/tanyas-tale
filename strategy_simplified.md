@@ -147,8 +147,156 @@ update() {
 }
 ```
 
-This simplified architecture will:
-1. Reduce code complexity
-2. Improve performance with fewer conditionals
-3. Make the code more maintainable
-4. Provide the same functionality with less code
+## Skill System Architecture
+
+Building on the simplified architecture, we've implemented a modular skill system:
+
+### 1. Base Skill Class
+```javascript
+class Skill {
+    constructor(owner, config = {}) {
+        this.owner = owner;
+        this.config = config;
+        this.active = true;
+        this.cooldown = 0;
+        this.lastUsed = 0;
+    }
+    
+    update(delta, targets) {
+        if (!this.active) return;
+        
+        // Handle cooldown
+        if (this.cooldown > 0) {
+            const now = Date.now();
+            if (now - this.lastUsed < this.cooldown) {
+                return;
+            }
+        }
+        
+        // Apply skill effect
+        this.apply(delta, targets);
+        
+        // Update last used time
+        if (this.cooldown > 0) {
+            this.lastUsed = Date.now();
+        }
+    }
+    
+    apply(delta, targets) {
+        // Override in subclasses
+    }
+}
+```
+
+### 2. Skill Manager
+```javascript
+class SkillManager {
+    constructor(owner) {
+        this.owner = owner;
+        this.skills = [];
+    }
+    
+    addSkill(skill) {
+        this.skills.push(skill);
+        return skill;
+    }
+    
+    update(delta, targets) {
+        for (const skill of this.skills) {
+            skill.update(delta, targets);
+        }
+    }
+}
+```
+
+### 3. Example Skills
+
+#### Proximity Damage Skill
+```javascript
+class ProximityDamageSkill extends Skill {
+    constructor(owner, config = {}) {
+        super(owner, {
+            minDamage: 0.5,
+            maxDamage: 5,
+            minDistance: 300,
+            maxDistance: 50,
+            ...config
+        });
+    }
+    
+    apply(delta, targets) {
+        const ownerPos = this.owner.getPosition();
+        
+        for (const target of targets) {
+            if (!target.state.active) continue;
+            
+            const distance = this.owner.distanceTo(target);
+            const damage = this.calculateDamage(distance);
+            
+            if (damage > 0) {
+                target.takeDamage(damage, this.config.effectManager);
+            }
+        }
+    }
+    
+    calculateDamage(distance) {
+        if (distance > this.config.minDistance) return 0;
+        
+        const t = Math.max(0, Math.min(1, (this.config.minDistance - distance) / 
+            (this.config.minDistance - this.config.maxDistance)));
+        return this.config.minDamage + t * (this.config.maxDamage - this.config.minDamage);
+    }
+}
+```
+
+#### Regeneration Skill
+```javascript
+class RegenerationSkill extends Skill {
+    constructor(owner, config = {}) {
+        super(owner, {
+            healAmount: 1,
+            interval: 1000,
+            ...config
+        });
+        
+        this.cooldown = this.config.interval;
+    }
+    
+    apply(delta, targets) {
+        this.owner.heal(this.config.healAmount);
+    }
+}
+```
+
+## Object Pooling System
+
+To optimize performance for large numbers of entities, we've implemented object pooling:
+
+```javascript
+class ObjectPool {
+    constructor(objectFactory, initialSize = 20) {
+        this.factory = objectFactory;
+        this.pool = [];
+        
+        // Pre-populate pool
+        for (let i = 0; i < initialSize; i++) {
+            this.pool.push(this.factory());
+        }
+    }
+    
+    get() {
+        return this.pool.length > 0 ? this.pool.pop() : this.factory();
+    }
+    
+    release(object) {
+        this.pool.push(object);
+    }
+}
+```
+
+These architectural improvements provide:
+1. Reduced code complexity
+2. Improved performance with fewer conditionals
+3. More maintainable and extensible code
+4. Modular skill system for gameplay mechanics
+5. Optimized memory usage with object pooling

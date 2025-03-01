@@ -9,7 +9,14 @@ export const config = {
     eventFeatures: {
         move: true,
         globalMove: true,
-    }
+    },
+    fps: 60 // Target FPS for calculations
+};
+
+// Grid system for positioning
+export const gridConfig = {
+    cellSize: 40, // Size of each grid cell
+    padding: 4,   // Padding between entities in the same cell
 };
 
 export const playerConfig = {
@@ -24,7 +31,58 @@ export const playerConfig = {
     
     // Direction indicator
     innerSize: 8, // 8 logical pixels
-    innerColor: 0xffff00 // Yellow for visibility
+    innerColor: 0xffff00, // Yellow for visibility
+    
+    // Health settings
+    maxHealth: 100,
+    healthBarWidth: 32, // Same as player size
+    healthBarHeight: 4,
+    healthBarOffset: 8, // Distance above player
+    healthBarBgColor: 0x333333, // Dark gray
+    healthBarFillColor: 0x00ff00, // Green
+    healthBarBorderColor: 0xffffff, // White
+    healthBarBorderThickness: 1
+};
+
+export const botConfig = {
+    // Bot settings
+    size: 32, // 32 logical pixels
+    color: 0x800080, // Purple color
+    
+    // Movement settings
+    speed: 1.5, // Slower than player
+    
+    // Health settings
+    maxHealth: 100,
+    healthBarWidth: 32, // Same as bot size
+    healthBarHeight: 4,
+    healthBarOffset: 8, // Distance above bot
+    healthBarBgColor: 0x333333, // Dark gray
+    healthBarFillColor: 0xff0000, // Red
+    healthBarBorderColor: 0xffffff, // White
+    healthBarBorderThickness: 1,
+    
+    // Damage settings
+    minDamage: 1, // Damage when far away
+    maxDamage: 10, // Damage when close
+    minDamageDistance: 300, // Distance for min damage
+    maxDamageDistance: 50, // Distance for max damage
+    
+    // Collision settings
+    minDistanceToPlayer: 40, // Minimum distance to player (prevents overlap)
+    minDistanceToBot: 36, // Minimum distance to other bots
+    
+    // Spawn settings
+    spawnCount: 10, // Number of bots to spawn
+    spawnMargin: 100, // Distance outside screen to spawn
+    
+    // Direction indicator (aim)
+    innerSize: 8, // 8 logical pixels
+    innerColor: 0x00ffff, // Cyan for visibility
+    
+    // Death animation
+    blackDuration: 2 * 60, // 2 seconds at 60fps
+    fadeDuration: 1 * 60,  // 1 second at 60fps
 };
 
 // Direction enum using bitwise flags for efficient checks

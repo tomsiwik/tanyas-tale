@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { playerConfig, Direction, AIM_POSITIONS } from './config.js';
 import { input } from './input.js';
+import { SkillManager } from './skills.js';
 
 // Simple player state class
 class PlayerState {
@@ -10,6 +11,7 @@ class PlayerState {
         this.moveDirection = Direction.NONE;
         this.aimDirection = Direction.NONE;
         this.isDucking = false;
+        this.health = playerConfig.maxHealth;
     }
 }
 
@@ -32,9 +34,38 @@ export class Player {
             .fill(playerConfig.innerColor);
         this.innerSprite.visible = false; // Start with indicator hidden
 
+        // Create health bar container
+        this.healthBarContainer = new PIXI.Container();
+        this.healthBarContainer.y = -playerConfig.healthBarOffset - playerConfig.healthBarHeight;
+        
+        // Create health bar background
+        this.healthBarBg = new PIXI.Graphics()
+            .rect(0, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight)
+            .fill(playerConfig.healthBarBgColor);
+            
+        // Create health bar fill
+        this.healthBarFill = new PIXI.Graphics()
+            .rect(0, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight)
+            .fill(playerConfig.healthBarFillColor);
+            
+        // Create health bar border
+        this.healthBarBorder = new PIXI.Graphics();
+        this.healthBarBorder
+            .setStrokeStyle({
+                width: playerConfig.healthBarBorderThickness,
+                color: playerConfig.healthBarBorderColor
+            })
+            .rect(0, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight);
+            
+        // Add health bar elements to container
+        this.healthBarContainer.addChild(this.healthBarBg);
+        this.healthBarContainer.addChild(this.healthBarFill);
+        this.healthBarContainer.addChild(this.healthBarBorder);
+
         // Add sprites to container
         this.container.addChild(this.sprite);
         this.container.addChild(this.innerSprite);
+        this.container.addChild(this.healthBarContainer);
 
         // Set initial position to center
         const centerX = Math.floor((app.screen.width - playerConfig.size) / 2);
@@ -46,6 +77,9 @@ export class Player {
         // Set initial container position
         this.container.x = this.state.x;
         this.container.y = this.state.y;
+
+        // Create skill manager
+        this.skillManager = new SkillManager(this);
 
         // Add container to stage
         app.stage.addChild(this.container);
@@ -114,12 +148,43 @@ export class Player {
         }
     }
 
+    updateHealthBar() {
+        // Calculate health bar fill width based on current health
+        const fillWidth = (this.state.health / playerConfig.maxHealth) * playerConfig.healthBarWidth;
+        
+        // Update health bar fill
+        this.healthBarFill.clear()
+            .rect(0, 0, fillWidth, playerConfig.healthBarHeight)
+            .fill(playerConfig.healthBarFillColor);
+    }
+
+    takeDamage(amount) {
+        this.state.health = Math.max(0, this.state.health - amount);
+        this.updateHealthBar();
+        return this.state.health > 0;
+    }
+
+    heal(amount) {
+        this.state.health = Math.min(playerConfig.maxHealth, this.state.health + amount);
+        this.updateHealthBar();
+    }
+
+    getPosition() {
+        return {
+            x: this.state.x + playerConfig.size / 2,
+            y: this.state.y + playerConfig.size / 2
+        };
+    }
+
     update() {
         // Update duck state
         this.updateDuckState();
         
         // Update aim position
         this.updateAimPosition();
+        
+        // Update health bar
+        this.updateHealthBar();
         
         // Get current movement direction from input
         this.state.moveDirection = input.getDirection();
