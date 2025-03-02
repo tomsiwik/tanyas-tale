@@ -1,9 +1,11 @@
 import * as PIXI from 'pixi.js';
 import { playerConfig, Direction, AIM_POSITIONS } from './config.js';
 import { input } from './input.js';
-import { SkillManager } from './skills.js';
+import { Entity } from './entity.js';
 
-// Simple player state class
+/**
+ * Player state class
+ */
 class PlayerState {
     constructor(x, y) {
         this.x = x;
@@ -12,12 +14,23 @@ class PlayerState {
         this.aimDirection = Direction.NONE;
         this.isDucking = false;
         this.health = playerConfig.maxHealth;
-        this.size = playerConfig.size; // Add size property for skills to access
+        this.size = playerConfig.size;
+        this.active = true;
     }
 }
 
-export class Player {
+/**
+ * Player class - represents the player character
+ * Extends the Entity class to provide a standardized interface
+ */
+export class Player extends Entity {
+    /**
+     * Create a new player
+     * @param {PIXI.Application} app - The PIXI application
+     */
     constructor(app) {
+        super();
+        
         this.app = app;
         console.log('Creating player sprite');
         
@@ -79,17 +92,14 @@ export class Player {
         this.container.x = this.state.x;
         this.container.y = this.state.y;
 
-        // Create skill manager
-        this.skillManager = new SkillManager(this);
-
         // Add container to stage
         app.stage.addChild(this.container);
         console.log('Player added to stage');
-
-        // Start update loop
-        this.app.ticker.add(() => this.update());
     }
 
+    /**
+     * Update duck state based on input
+     */
     updateDuckState() {
         const newDuckState = input.isDucking();
         if (this.state.isDucking !== newDuckState) {
@@ -101,6 +111,10 @@ export class Player {
         }
     }
 
+    /**
+     * Get aim direction from mouse position
+     * @returns {number} Direction enum value
+     */
     getAimDirectionFromMouse() {
         const mouse = input.getMousePosition();
         const playerCenterX = this.state.x + playerConfig.size / 2;
@@ -132,6 +146,9 @@ export class Player {
         return Direction.NONE; // Fallback
     }
 
+    /**
+     * Update aim position based on mouse
+     */
     updateAimPosition() {
         const newAimDirection = this.getAimDirectionFromMouse();
         if (this.state.aimDirection !== newAimDirection) {
@@ -149,6 +166,9 @@ export class Player {
         }
     }
 
+    /**
+     * Update health bar based on current health
+     */
     updateHealthBar() {
         // Calculate health bar fill width based on current health
         const fillWidth = (this.state.health / playerConfig.maxHealth) * playerConfig.healthBarWidth;
@@ -159,17 +179,35 @@ export class Player {
             .fill(playerConfig.healthBarFillColor);
     }
 
+    /**
+     * Take damage
+     * @param {number} amount - Amount of damage to take
+     * @returns {boolean} Whether the player is still alive
+     */
     takeDamage(amount) {
         this.state.health = Math.max(0, this.state.health - amount);
         this.updateHealthBar();
+        
+        if (this.state.health <= 0) {
+            this.state.active = false;
+        }
+        
         return this.state.health > 0;
     }
 
+    /**
+     * Heal the player
+     * @param {number} amount - Amount of healing
+     */
     heal(amount) {
         this.state.health = Math.min(playerConfig.maxHealth, this.state.health + amount);
         this.updateHealthBar();
     }
 
+    /**
+     * Get the player's position
+     * @returns {Object} The player's position {x, y}
+     */
     getPosition() {
         return {
             x: this.state.x + playerConfig.size / 2,
@@ -177,7 +215,28 @@ export class Player {
         };
     }
 
-    update() {
+    /**
+     * Get the player's state
+     * @returns {Object} The player's state
+     */
+    getState() {
+        return this.state;
+    }
+
+    /**
+     * Check if the player is active
+     * @returns {boolean} Whether the player is active
+     */
+    isActive() {
+        return this.state.active;
+    }
+
+    /**
+     * Update the player
+     * @param {number} deltaTime - Time since last frame in milliseconds
+     * @param {Array} targets - Potential targets for skills
+     */
+    tick(deltaTime, targets = []) {
         // Update duck state
         this.updateDuckState();
         
@@ -212,5 +271,8 @@ export class Player {
         // Update container position
         this.container.x = Math.floor(this.state.x);
         this.container.y = Math.floor(this.state.y);
+        
+        // Process effects and update skills (from Entity class)
+        super.tick(deltaTime, targets);
     }
 }

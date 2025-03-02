@@ -6,68 +6,99 @@ import { EffectManager } from './game/effects.js';
 import { GameUI } from './game/ui.js';
 import { ProximityDamageSkill, ConeAttackSkill } from './game/skills.js';
 
-async function startGame() {
-    // Initialize PIXI Application with simplified config
-    const app = new PIXI.Application();
-    await app.init({
-        ...config,
-        backgroundAlpha: 1,
-        antialias: false, // Disable antialiasing for pixel-perfect rendering
-        fps: 60 // Set to 60 FPS for smoother animations
-    });
+/**
+ * Game class - manages the game loop and entities
+ */
+class Game {
+    constructor() {
+        this.entities = [];
+        this.lastTick = Date.now();
+        this.app = null;
+        this.player = null;
+        this.botManager = null;
+        this.effectManager = null;
+        this.ui = null;
+    }
+    
+    /**
+     * Initialize the game
+     */
+    async init() {
+        // Initialize PIXI Application with simplified config
+        this.app = new PIXI.Application();
+        await this.app.init({
+            ...config,
+            backgroundAlpha: 1,
+            antialias: false, // Disable antialiasing for pixel-perfect rendering
+            fps: 60 // Set to 60 FPS for smoother animations
+        });
 
-    // Add canvas to page
-    document.querySelector('#app').appendChild(app.canvas);
+        // Add canvas to page
+        document.querySelector('#app').appendChild(this.app.canvas);
 
-    // Hide the default cursor
-    document.body.style.cursor = 'none';
+        // Hide the default cursor
+        document.body.style.cursor = 'none';
 
-    // Create player
-    const player = new Player(app);
+        // Create effect manager
+        this.effectManager = new EffectManager(this.app);
+        
+        // Pre-allocate effects for better performance
+        this.effectManager.preAllocate(botConfig.spawnCount * 2);
+        
+        // Create player
+        this.player = new Player(this.app);
+        
+        // Add player to entities list
+        this.entities.push(this.player);
+        
+        // Add skills to player
+        this.player.addSkill(new ProximityDamageSkill({
+            effectManager: this.effectManager
+        }));
+        
+        this.player.addSkill(new ConeAttackSkill({
+            effectManager: this.effectManager
+        }));
+        
+        // Create bot manager to handle multiple bots
+        this.botManager = new BotManager(this.app, this.player, this.effectManager);
+        
+        // Pre-allocate bots for better performance
+        this.botManager.preAllocate(botConfig.spawnCount * 2);
+        
+        // Create UI
+        this.ui = new GameUI(this.app);
+        
+        // Add game loop to update entities
+        this.app.ticker.add(() => this.tick());
+        
+        // Log performance info
+        console.log(`Game initialized with ${botConfig.spawnCount} bots`);
+        console.log(`Target FPS: ${config.fps}`);
+        console.log('Player skills: Proximity Damage, Cone Attack');
+        console.log('Bot skills: Regeneration');
+    }
     
-    // Create effect manager
-    const effectManager = new EffectManager(app);
-    
-    // Pre-allocate effects for better performance
-    effectManager.preAllocate(botConfig.spawnCount * 2);
-    
-    // Create bot manager to handle multiple bots
-    const botManager = new BotManager(app, player, effectManager);
-    
-    // Pre-allocate bots for better performance
-    botManager.preAllocate(botConfig.spawnCount * 2);
-    
-    // Add proximity damage skill to player
-    player.skillManager.addSkill(new ProximityDamageSkill(player, {
-        effectManager: effectManager
-    }));
-    
-    // Add cone attack skill to player
-    player.skillManager.addSkill(new ConeAttackSkill(player, {
-        effectManager: effectManager
-    }));
-    
-    // Create UI
-    const ui = new GameUI(app);
-    
-    // Add game loop to update managers
-    app.ticker.add((delta) => {
-        // Update bot manager
-        botManager.update(delta);
+    /**
+     * Game tick - updates all entities
+     */
+    tick() {
+        // Calculate delta time
+        const now = Date.now();
+        const deltaTime = now - this.lastTick;
+        this.lastTick = now;
         
         // Update effect manager
-        effectManager.update();
+        this.effectManager.update();
         
-        // Update player skills
-        player.skillManager.update(delta, botManager.getActiveBots());
-    });
-    
-    // Log performance info
-    console.log(`Game initialized with ${botConfig.spawnCount} bots`);
-    console.log(`Target FPS: ${config.fps}`);
-    console.log('Player skills: Proximity Damage, Cone Attack');
-    console.log('Bot skills: Regeneration');
+        // Update player
+        this.player.tick(deltaTime, this.botManager.getActiveBots());
+        
+        // Update bot manager
+        this.botManager.tick(deltaTime);
+    }
 }
 
-// Start the game
-startGame().catch(console.error);
+// Create and start the game
+const game = new Game();
+game.init().catch(console.error);
