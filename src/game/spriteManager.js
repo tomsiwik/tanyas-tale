@@ -7,15 +7,12 @@ import { Direction } from './config.js';
 export class SpriteManager {
     /**
      * Create a new sprite manager
-     * @param {string} basePath - Base path to the sprite images (not used with atlas)
+     * @param {PIXI.Spritesheet} spriteSheet - The sprite sheet object
      */
-    constructor(basePath = '/assets/sprites/') {
-        this.atlasPath = '/assets/atlas/sprite_atlas.json';
-        this.spriteSheet = null;
-        this.textures = {};
-        this.animations = {};
+    constructor(spriteSheet) {
+        this.spriteSheet = spriteSheet;
+        this.animations = spriteSheet.animations;
         this.directionMap = this.createDirectionMap();
-        this.isLoaded = false;
     }
 
     /**
@@ -24,103 +21,16 @@ export class SpriteManager {
      */
     createDirectionMap() {
         return {
-            // Standing animations (0000-0007)
-            // Reversed to match the correct direction
-            standing: {
-                [Direction.UP]: 0,            // North (0000)
-                [Direction.UP_RIGHT]: 7,      // North-West (0007) - reversed
-                [Direction.RIGHT]: 6,         // West (0006) - reversed
-                [Direction.DOWN_RIGHT]: 5,    // South-West (0005) - reversed
-                [Direction.DOWN]: 4,          // South (0004)
-                [Direction.DOWN_LEFT]: 3,     // South-East (0003) - reversed
-                [Direction.LEFT]: 2,          // East (0002) - reversed
-                [Direction.UP_LEFT]: 1,       // North-East (0001) - reversed
-                [Direction.NONE]: 0           // Default to North
-            },
-            // Running animations (0008-0055)
-            // Each direction has 6 frames, starting from index 8
-            // Reversed to match the correct direction
-            running: {
-                [Direction.UP]: { start: 8, frames: 6 },            // North (0008-0013)
-                [Direction.UP_RIGHT]: { start: 50, frames: 6 },     // North-West (0050-0055) - reversed
-                [Direction.RIGHT]: { start: 44, frames: 6 },        // West (0044-0049) - reversed
-                [Direction.DOWN_RIGHT]: { start: 38, frames: 6 },   // South-West (0038-0043) - reversed
-                [Direction.DOWN]: { start: 32, frames: 6 },         // South (0032-0037)
-                [Direction.DOWN_LEFT]: { start: 26, frames: 6 },    // South-East (0026-0031) - reversed
-                [Direction.LEFT]: { start: 20, frames: 6 },         // East (0020-0025) - reversed
-                [Direction.UP_LEFT]: { start: 14, frames: 6 },      // North-East (0014-0019) - reversed
-                [Direction.NONE]: { start: 8, frames: 6 }           // Default to North
-            }
+            [Direction.UP]: 'n',
+            [Direction.UP_RIGHT]: 'ne',
+            [Direction.RIGHT]: 'e',
+            [Direction.DOWN_RIGHT]: 'se',
+            [Direction.DOWN]: 's',
+            [Direction.DOWN_LEFT]: 'sw',
+            [Direction.LEFT]: 'w',
+            [Direction.UP_LEFT]: 'nw',
+            [Direction.NONE]: 'n'
         };
-    }
-
-    /**
-     * Load the sprite atlas and create textures
-     * @returns {Promise} Promise that resolves when the atlas is loaded
-     */
-    async loadAtlas() {
-        if (this.isLoaded) {
-            return true;
-        }
-
-        try {
-            console.log(`Loading sprite atlas: ${this.atlasPath}`);
-            
-            // Load the sprite atlas
-            const atlas = await PIXI.Assets.load(this.atlasPath);
-            this.spriteSheet = atlas;
-            
-            // Store all textures from the atlas
-            for (const frameName in atlas.textures) {
-                // Extract the frame number from the name (e.g., "e7_0000" -> "0000")
-                const frameNumber = frameName.split('_')[1];
-                this.textures[frameNumber] = atlas.textures[frameName];
-            }
-            
-            // Create animations from the loaded textures
-            this.createAnimations();
-            
-            this.isLoaded = true;
-            console.log('Sprite atlas loaded successfully');
-            return true;
-        } catch (error) {
-            console.error(`Failed to load sprite atlas: ${error}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Create animations from loaded textures
-     */
-    createAnimations() {
-        // Create standing animations
-        const standingMap = this.directionMap.standing;
-        for (const direction in standingMap) {
-            const index = standingMap[direction];
-            const key = index.toString().padStart(4, '0');
-            
-            if (this.textures[key]) {
-                this.animations[`standing_${direction}`] = [this.textures[key]];
-            }
-        }
-        
-        // Create running animations
-        const runningMap = this.directionMap.running;
-        for (const direction in runningMap) {
-            const { start, frames } = runningMap[direction];
-            const textures = [];
-            
-            for (let i = 0; i < frames; i++) {
-                const index = (start + i).toString().padStart(4, '0');
-                if (this.textures[index]) {
-                    textures.push(this.textures[index]);
-                }
-            }
-            
-            if (textures.length > 0) {
-                this.animations[`running_${direction}`] = textures;
-            }
-        }
     }
 
     /**
@@ -131,12 +41,15 @@ export class SpriteManager {
      */
     getAnimationTextures(direction, isMoving) {
         const state = isMoving ? 'running' : 'standing';
-        const animationKey = `${state}_${direction}`;
-        
+        const animationKey = `${state}_${this.directionMap[direction]}`;
+
         // Use the animation if it exists, otherwise use a default
-        return this.animations[animationKey] || 
-               this.animations[`${state}_${Direction.NONE}`] ||
-               [this.textures['0000']]; // Fallback to first frame
+        if (this.animations[animationKey]) {
+            return this.animations[animationKey];
+        } else {
+            console.warn(`Animation ${animationKey} not found!`);
+            return [];
+        }
     }
 
     /**
@@ -146,14 +59,18 @@ export class SpriteManager {
      * @returns {Promise<PIXI.AnimatedSprite>} Promise that resolves to an animated sprite
      */
     async createSprite(direction = Direction.NONE, isMoving = false) {
-        // Load the atlas if not already loaded
-        await this.loadAtlas();
-        
         // Get textures for the animation
         const textures = this.getAnimationTextures(direction, isMoving);
+        console.log('textures', textures);
         
         // Create animated sprite
-        const sprite = new PIXI.AnimatedSprite(textures);
+        let sprite;
+        if (textures && textures.length > 0) {
+            sprite = new PIXI.AnimatedSprite(textures);
+        } else {
+            console.error('No textures found for animation!');
+            return null;
+        }
         
         // Configure sprite
         sprite.animationSpeed = 0.15; // Adjust speed as needed
@@ -185,9 +102,6 @@ export class SpriteManager {
      * @param {boolean} isMoving - Whether the entity is moving
      */
     async updateSprite(sprite, direction = Direction.NONE, isMoving = false) {
-        // Load the atlas if not already loaded
-        await this.loadAtlas();
-        
         // Get textures for the animation
         const textures = this.getAnimationTextures(direction, isMoving);
         
