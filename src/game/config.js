@@ -26,7 +26,7 @@ export const playerConfig = {
     duckColor: 0x8B0000, // Duck color (dark red)
     
     // Movement settings
-    speed: 4, // 4 pixels per step for fast movement
+    speed: 2, // 2 pixels per step (halved from 4)
     duckSpeedMultiplier: 0.5, // Half speed when ducking
     
     // Direction indicator

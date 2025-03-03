@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { playerConfig, Direction, AIM_POSITIONS } from './config.js';
 import { input } from './input.js';
 import { Entity } from './entity.js';
+import { SpriteManager } from './spriteManager.js';
 
 /**
  * Player state class
@@ -16,6 +17,7 @@ class PlayerState {
         this.health = playerConfig.maxHealth;
         this.size = playerConfig.size;
         this.active = true;
+        this.isMoving = false; // Track if player is moving
     }
 }
 
@@ -34,32 +36,37 @@ export class Player extends Entity {
         this.app = app;
         console.log('Creating player sprite');
         
-        // Create container for player elements
+        // Create container for player elements with transparent background
         this.container = new PIXI.Container();
+        this.container.sortableChildren = true; // Enable z-index sorting
         
-        // Create main square
-        this.sprite = new PIXI.Graphics()
-            .rect(0, 0, playerConfig.size, playerConfig.size)
+        // Initialize sprite manager
+        this.spriteManager = new SpriteManager('/assets/sprites/');
+        this.spritesLoaded = false;
+        this.spriteUpdatePromise = Promise.resolve(); // Track ongoing sprite updates
+        
+        // Create temporary placeholder while sprites load
+        this.placeholder = new PIXI.Graphics()
+            .rect(-playerConfig.size/2, -playerConfig.size/2, playerConfig.size, playerConfig.size)
             .fill(playerConfig.color);
-
-        // Create inner direction indicator
-        this.innerSprite = new PIXI.Graphics()
-            .rect(0, 0, playerConfig.innerSize, playerConfig.innerSize)
-            .fill(playerConfig.innerColor);
-        this.innerSprite.visible = false; // Start with indicator hidden
-
-        // Create health bar container
+        
+        // Placeholder for loading
+        this.placeholder.zIndex = 10; // Same as sprite
+        this.container.addChild(this.placeholder);
+        
+        // Create health bar container and position it further above the player
         this.healthBarContainer = new PIXI.Container();
-        this.healthBarContainer.y = -playerConfig.healthBarOffset - playerConfig.healthBarHeight;
+        this.healthBarContainer.y = -(playerConfig.healthBarOffset * 2) - playerConfig.healthBarHeight - 8;
+        this.healthBarContainer.zIndex = 20; // Higher than sprite
         
         // Create health bar background
         this.healthBarBg = new PIXI.Graphics()
-            .rect(0, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight)
+            .rect(-playerConfig.healthBarWidth/2, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight)
             .fill(playerConfig.healthBarBgColor);
             
         // Create health bar fill
         this.healthBarFill = new PIXI.Graphics()
-            .rect(0, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight)
+            .rect(-playerConfig.healthBarWidth/2, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight)
             .fill(playerConfig.healthBarFillColor);
             
         // Create health bar border
@@ -69,21 +76,17 @@ export class Player extends Entity {
                 width: playerConfig.healthBarBorderThickness,
                 color: playerConfig.healthBarBorderColor
             })
-            .rect(0, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight);
+            .rect(-playerConfig.healthBarWidth/2, 0, playerConfig.healthBarWidth, playerConfig.healthBarHeight);
             
         // Add health bar elements to container
         this.healthBarContainer.addChild(this.healthBarBg);
         this.healthBarContainer.addChild(this.healthBarFill);
         this.healthBarContainer.addChild(this.healthBarBorder);
-
-        // Add sprites to container
-        this.container.addChild(this.sprite);
-        this.container.addChild(this.innerSprite);
         this.container.addChild(this.healthBarContainer);
 
         // Set initial position to center
-        const centerX = Math.floor((app.screen.width - playerConfig.size) / 2);
-        const centerY = Math.floor((app.screen.height - playerConfig.size) / 2);
+        const centerX = Math.floor(app.screen.width / 2);
+        const centerY = Math.floor(app.screen.height / 2);
         
         // Initialize player state
         this.state = new PlayerState(centerX, centerY);
@@ -95,6 +98,54 @@ export class Player extends Entity {
         // Add container to stage
         app.stage.addChild(this.container);
         console.log('Player added to stage');
+        
+        // Load sprites asynchronously
+        this.loadSprites();
+    }
+    
+    /**
+     * Load sprite textures and create the animated sprite
+     */
+    async loadSprites() {
+        try {
+            console.log('Loading player sprites...');
+            
+            // Create initial sprite with standing animation
+            this.sprite = await this.spriteManager.createSprite(Direction.DOWN, false);
+            
+            // Set sprite scale to be twice the player size for better visibility
+            const scale = (playerConfig.size * 2) / Math.max(this.sprite.width, this.sprite.height);
+            this.sprite.scale.set(scale);
+            
+            // Ensure the sprite has transparency
+            this.sprite.alpha = 1;
+            
+            // Use nearest neighbor scaling to prevent blurriness
+            this.sprite.texture.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
+            
+            // Remove placeholder and add sprite
+            this.container.removeChild(this.placeholder);
+            
+            // Set sprite z-index and add to container
+            this.sprite.zIndex = 10; // Higher than shadow
+            
+            // Create a mask with further reduced height to fix blurriness
+            const spriteWidth = this.sprite.width;
+            const spriteHeight = this.sprite.height;
+            const mask = new PIXI.Graphics()
+                .rect(-spriteWidth/2, -spriteHeight/2 + 6, spriteWidth, spriteHeight - 14)
+                .fill(0xFFFFFF);
+            
+            // Apply the mask to the sprite
+            this.sprite.mask = mask;
+            this.container.addChild(mask);
+            this.container.addChild(this.sprite);
+            
+            this.spritesLoaded = true;
+            console.log('Player sprites loaded successfully');
+        } catch (error) {
+            console.error('Failed to load player sprites:', error);
+        }
     }
 
     /**
@@ -104,10 +155,9 @@ export class Player extends Entity {
         const newDuckState = input.isDucking();
         if (this.state.isDucking !== newDuckState) {
             this.state.isDucking = newDuckState;
-            // Clear and redraw with new color
-            this.sprite.clear()
-                .rect(0, 0, playerConfig.size, playerConfig.size)
-                .fill(this.state.isDucking ? playerConfig.duckColor : playerConfig.color);
+            
+            // Ducking will use different sprite coordinates later
+            // No color change needed
         }
     }
 
@@ -117,8 +167,8 @@ export class Player extends Entity {
      */
     getAimDirectionFromMouse() {
         const mouse = input.getMousePosition();
-        const playerCenterX = this.state.x + playerConfig.size / 2;
-        const playerCenterY = this.state.y + playerConfig.size / 2;
+        const playerCenterX = this.state.x;
+        const playerCenterY = this.state.y;
 
         const dx = mouse.x - playerCenterX;
         const dy = mouse.y - playerCenterY;
@@ -154,16 +204,21 @@ export class Player extends Entity {
         if (this.state.aimDirection !== newAimDirection) {
             this.state.aimDirection = newAimDirection;
             
-            // Use lookup table to get position
-            if (newAimDirection !== Direction.NONE) {
-                const pos = AIM_POSITIONS[newAimDirection];
-                this.innerSprite.x = pos.x;
-                this.innerSprite.y = pos.y;
-                this.innerSprite.visible = true;
-            } else {
-                this.innerSprite.visible = false;
-            }
+            // No longer update sprite based on aim direction
+            // Sprite animation is now based solely on movement direction
         }
+    }
+
+    /**
+     * Queue a sprite update to avoid multiple concurrent updates
+     * @param {number} direction - Direction enum value
+     * @param {boolean} isMoving - Whether the entity is moving
+     */
+    queueSpriteUpdate(direction, isMoving) {
+        // Chain the new update to the previous one
+        this.spriteUpdatePromise = this.spriteUpdatePromise
+            .then(() => this.spriteManager.updateSprite(this.sprite, direction, isMoving))
+            .catch(err => console.error('Error updating sprite:', err));
     }
 
     /**
@@ -175,7 +230,7 @@ export class Player extends Entity {
         
         // Update health bar fill
         this.healthBarFill.clear()
-            .rect(0, 0, fillWidth, playerConfig.healthBarHeight)
+            .rect(-playerConfig.healthBarWidth/2, 0, fillWidth, playerConfig.healthBarHeight)
             .fill(playerConfig.healthBarFillColor);
     }
 
@@ -210,8 +265,8 @@ export class Player extends Entity {
      */
     getPosition() {
         return {
-            x: this.state.x + playerConfig.size / 2,
-            y: this.state.y + playerConfig.size / 2
+            x: this.state.x,
+            y: this.state.y
         };
     }
 
@@ -247,7 +302,12 @@ export class Player extends Entity {
         this.updateHealthBar();
         
         // Get current movement direction from input
+        const prevMoveDirection = this.state.moveDirection;
         this.state.moveDirection = input.getDirection();
+        
+        // Check if player is moving
+        const wasMoving = this.state.isMoving;
+        this.state.isMoving = this.state.moveDirection !== Direction.NONE;
         
         // Calculate speed based on duck state
         const speed = this.state.isDucking 
@@ -258,19 +318,33 @@ export class Player extends Entity {
         if (this.state.moveDirection & Direction.LEFT && this.state.x > 0) {
             this.state.x -= speed;
         }
-        if (this.state.moveDirection & Direction.RIGHT && this.state.x < this.app.screen.width - playerConfig.size) {
+        if (this.state.moveDirection & Direction.RIGHT && this.state.x < this.app.screen.width) {
             this.state.x += speed;
         }
         if (this.state.moveDirection & Direction.UP && this.state.y > 0) {
             this.state.y -= speed;
         }
-        if (this.state.moveDirection & Direction.DOWN && this.state.y < this.app.screen.height - playerConfig.size) {
+        if (this.state.moveDirection & Direction.DOWN && this.state.y < this.app.screen.height) {
             this.state.y += speed;
         }
         
         // Update container position
         this.container.x = Math.floor(this.state.x);
         this.container.y = Math.floor(this.state.y);
+        
+        // Update sprite animation if movement state or direction changed
+        if (this.spritesLoaded && this.sprite && 
+            (wasMoving !== this.state.isMoving || prevMoveDirection !== this.state.moveDirection)) {
+            
+            // Always use movement direction for sprite animation
+            // If not moving, use the last movement direction
+            const displayDirection = this.state.moveDirection !== Direction.NONE 
+                ? this.state.moveDirection 
+                : prevMoveDirection;
+                
+            // Queue sprite update (non-blocking)
+            this.queueSpriteUpdate(displayDirection, this.state.isMoving);
+        }
         
         // Process effects and update skills (from Entity class)
         super.tick(deltaTime, targets);

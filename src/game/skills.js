@@ -333,10 +333,10 @@ export class ConeAttackSkill extends Skill {
         
         // Add to owner's container to move with the owner
         if (owner.container) {
-            // Position at center of owner
+            // Position at center of owner, adjusted 15px left and 17px up
             const ownerState = owner.getState();
-            this.graphics.x = ownerState.size / 2;
-            this.graphics.y = ownerState.size / 2;
+            this.graphics.x = (ownerState.size / 2) - 15; // 15px to the left
+            this.graphics.y = (ownerState.size / 2) - 17; // 17px up
             
             // Add to owner's container
             owner.container.addChild(this.graphics);
