@@ -24,59 +24,69 @@ class Game {
      * Initialize the game
      */
     async init() {
-        // Initialize PIXI Application with simplified config
-        this.app = new PIXI.Application();
-        await this.app.init({
-            ...config,
-            backgroundAlpha: 1,
-            antialias: false, // Disable antialiasing for pixel-perfect rendering
-            fps: 60 // Set to 60 FPS for smoother animations
-        });
+        try {
+            // Initialize PIXI Application with simplified config
+            this.app = new PIXI.Application();
+            await this.app.init({
+                ...config,
+                backgroundAlpha: 1,
+                antialias: false, // Disable antialiasing for pixel-perfect rendering
+                fps: 60 // Set to 60 FPS for smoother animations
+            });
 
-        // Add canvas to page
-        document.querySelector('#app').appendChild(this.app.canvas);
+            // Add canvas to page
+            document.querySelector('#app').appendChild(this.app.canvas);
 
-        // Hide the default cursor
-        document.body.style.cursor = 'none';
+            // Hide the default cursor
+            document.body.style.cursor = 'none';
 
-        // Create effect manager
-        this.effectManager = new EffectManager(this.app);
-        
-        // Pre-allocate effects for better performance
-        this.effectManager.preAllocate(botConfig.spawnCount * 2);
-        
-        // Create player
-        this.player = new Player(this.app);
-        
-        // Add player to entities list
-        this.entities.push(this.player);
-        
-        // Add skills to player
-        this.player.addSkill(new ProximityDamageSkill({
-            effectManager: this.effectManager
-        }));
-        
-        this.player.addSkill(new ConeAttackSkill({
-            effectManager: this.effectManager
-        }));
-        
-        // Create bot manager to handle multiple bots
-        this.botManager = new BotManager(this.app, this.player, this.effectManager);
-        
-        // Pre-allocate bots for better performance
-        this.botManager.preAllocate(botConfig.spawnCount * 2);
-        
-        // Create UI
-        this.ui = new GameUI(this.app);
-        
-        // Add game loop to update entities
-        this.app.ticker.add(() => this.tick());
-        
-        // Log performance info
-        console.log(`Game initialized with ${botConfig.spawnCount} bots`);
-        console.log(`Target FPS: ${config.fps}`);
-        console.log('Player skills: Proximity Damage, Cone Attack');
-        console.log('Bot skills: Regeneration');
+            // Preload sprite atlas
+            console.log('Loading sprite atlas...');
+            await PIXI.Assets.load('/assets/atlas/sprite_atlas.json');
+            console.log('Sprite atlas loaded successfully');
+
+            // Create effect manager
+            this.effectManager = new EffectManager(this.app);
+            
+            // Pre-allocate effects for better performance
+            this.effectManager.preAllocate(botConfig.spawnCount * 2);
+            
+            // Create player
+            this.player = new Player(this.app);
+            
+            // Add player to entities list
+            this.entities.push(this.player);
+            
+            // Add skills to player
+            this.player.addSkill(new ProximityDamageSkill({
+                effectManager: this.effectManager
+            }));
+            
+            this.player.addSkill(new ConeAttackSkill({
+                effectManager: this.effectManager
+            }));
+            
+            // Create bot manager to handle multiple bots
+            this.botManager = new BotManager(this.app, this.player, this.effectManager);
+            
+            // Pre-allocate bots for better performance
+            this.botManager.preAllocate(botConfig.spawnCount * 2);
+            
+            // Create UI
+            this.ui = new GameUI(this.app);
+            
+            // Add game loop to update entities
+            this.app.ticker.add(() => this.tick());
+            
+            // Log performance info
+            console.log(`Game initialized with ${botConfig.spawnCount} bots`);
+            console.log(`Target FPS: ${config.fps}`);
+            console.log('Player skills: Proximity Damage, Cone Attack');
+            console.log('Bot skills: Regeneration');
+        } catch (error) {
+            console.error('Failed to initialize game:', error);
+            throw error;
+        }
     }
     
     /**

@@ -3,6 +3,7 @@ import { playerConfig, Direction, AIM_POSITIONS } from './config.js';
 import { input } from './input.js';
 import { Entity } from './entity.js';
 import { SpriteManager } from './spriteManager.js';
+import { AnimationState } from './AnimationState.js';
 
 /**
  * Player state class
@@ -17,7 +18,9 @@ class PlayerState {
         this.health = playerConfig.maxHealth;
         this.size = playerConfig.size;
         this.active = true;
-        this.isMoving = false; // Track if player is moving
+        
+        // Animation state management
+        this.animState = new AnimationState();
     }
 }
 
@@ -41,7 +44,8 @@ export class Player extends Entity {
         this.container.sortableChildren = true; // Enable z-index sorting
         
         // Initialize sprite manager
-        this.spriteManager = new SpriteManager('/assets/sprites/');
+        this.spriteManager = null;
+        this.initSpriteManager();
         this.spritesLoaded = false;
         this.spriteUpdatePromise = Promise.resolve(); // Track ongoing sprite updates
         
@@ -104,14 +108,33 @@ export class Player extends Entity {
     }
     
     /**
+     * Initialize the sprite manager with loaded assets
+     */
+    async initSpriteManager() {
+        try {
+            // Load sprite atlas
+            const spritesheet = await PIXI.Assets.load('/assets/atlas/sprite_atlas.json');
+            this.spriteManager = new SpriteManager(spritesheet);
+            await this.loadSprites();
+        } catch (error) {
+            console.error('Failed to initialize sprite manager:', error);
+        }
+    }
+
+    /**
      * Load sprite textures and create the animated sprite
      */
     async loadSprites() {
         try {
+            if (!this.spriteManager) {
+                console.warn('Sprite manager not initialized');
+                return;
+            }
+
             console.log('Loading player sprites...');
             
-            // Create initial sprite with standing animation
-            this.sprite = await this.spriteManager.createSprite(Direction.DOWN, false);
+            // Create initial sprite with default animation state
+            this.sprite = await this.spriteManager.createSprite(this.state.animState);
             
             // Set sprite scale to be twice the player size for better visibility
             const scale = (playerConfig.size * 2) / Math.max(this.sprite.width, this.sprite.height);
@@ -211,13 +234,29 @@ export class Player extends Entity {
 
     /**
      * Queue a sprite update to avoid multiple concurrent updates
-     * @param {number} direction - Direction enum value
-     * @param {boolean} isMoving - Whether the entity is moving
      */
-    queueSpriteUpdate(direction, isMoving) {
+    queueSpriteUpdate() {
         // Chain the new update to the previous one
         this.spriteUpdatePromise = this.spriteUpdatePromise
-            .then(() => this.spriteManager.updateSprite(this.sprite, direction, isMoving))
+            .then(() => {
+                // Update animation state
+                this.state.animState.updateState(
+                    this.state.moveDirection,
+                    this.state.isDucking,
+                    false, // isShooting
+                    false, // isExploding
+                    false  // isZapped
+                );
+                
+                // Update sprite animation
+                return this.spriteManager.updateSprite(this.sprite, this.state.animState);
+            })
+            .then(() => {
+                // Update sprite rotation based on facing direction
+                if (this.sprite) {
+                    this.sprite.rotation = this.state.animState.getRotation();
+                }
+            })
             .catch(err => console.error('Error updating sprite:', err));
     }
 
@@ -332,18 +371,9 @@ export class Player extends Entity {
         this.container.x = Math.floor(this.state.x);
         this.container.y = Math.floor(this.state.y);
         
-        // Update sprite animation if movement state or direction changed
-        if (this.spritesLoaded && this.sprite && 
-            (wasMoving !== this.state.isMoving || prevMoveDirection !== this.state.moveDirection)) {
-            
-            // Always use movement direction for sprite animation
-            // If not moving, use the last movement direction
-            const displayDirection = this.state.moveDirection !== Direction.NONE 
-                ? this.state.moveDirection 
-                : prevMoveDirection;
-                
-            // Queue sprite update (non-blocking)
-            this.queueSpriteUpdate(displayDirection, this.state.isMoving);
+        // Update sprite animation if state changed
+        if (this.spritesLoaded && this.sprite) {
+            this.queueSpriteUpdate();
         }
         
         // Process effects and update skills (from Entity class)

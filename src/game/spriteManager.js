@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { Direction } from './config.js';
+import { AnimationState } from './AnimationState.js';
 
 /**
  * Manages sprite animations for game entities using a sprite atlas
@@ -12,56 +12,59 @@ export class SpriteManager {
     constructor(spriteSheet) {
         this.spriteSheet = spriteSheet;
         this.animations = spriteSheet.animations;
-        this.directionMap = this.createDirectionMap();
+        this.fallbackMap = this.createFallbackMap();
     }
 
     /**
-     * Create a mapping between Direction enum and sprite frame indices
-     * @returns {Object} Mapping between Direction enum and sprite indices
+     * Create a mapping of animation fallbacks
+     * @returns {Object} Mapping of animation fallbacks
      */
-    createDirectionMap() {
+    createFallbackMap() {
         return {
-            [Direction.UP]: 'n',
-            [Direction.UP_RIGHT]: 'ne',
-            [Direction.RIGHT]: 'e',
-            [Direction.DOWN_RIGHT]: 'se',
-            [Direction.DOWN]: 's',
-            [Direction.DOWN_LEFT]: 'sw',
-            [Direction.LEFT]: 'w',
-            [Direction.UP_LEFT]: 'nw',
-            [Direction.NONE]: 'n'
+            'standing': 'idle',
+            'ducking': 'standing',
+            'duck_moving': 'running',
+            'shooting': 'standing',
+            'death_explode': 'running',
+            'death_zap': 'running'
         };
     }
 
     /**
-     * Get animation textures for a specific direction and movement state
-     * @param {number} direction - Direction enum value
-     * @param {boolean} isMoving - Whether the entity is moving
+     * Get animation textures for the current animation state
+     * @param {AnimationState} state - Current animation state
      * @returns {Array<PIXI.Texture>} Array of textures for the animation
      */
-    getAnimationTextures(direction, isMoving) {
-        const state = isMoving ? 'running' : 'standing';
-        const animationKey = `${state}_${this.directionMap[direction]}`;
+    getAnimationTextures(state) {
+        // Try to get the current animation
+        let textures = this.animations[state.currentAnimation];
+        
+        // If not found, try the fallback
+        if (!textures && this.fallbackMap[state.currentAnimation]) {
+            textures = this.animations[this.fallbackMap[state.currentAnimation]];
+        }
+        
+        // If still not found, try 'running' as final fallback
+        if (!textures) {
+            textures = this.animations['running'];
+        }
 
-        // Use the animation if it exists, otherwise use a default
-        if (this.animations[animationKey]) {
-            return this.animations[animationKey];
-        } else {
-            console.warn(`Animation ${animationKey} not found!`);
+        if (!textures) {
+            console.warn(`No animation found for ${state.currentAnimation}`);
             return [];
         }
+
+        return textures;
     }
 
     /**
      * Create a sprite with the appropriate animation
-     * @param {number} direction - Direction enum value
-     * @param {boolean} isMoving - Whether the entity is moving
+     * @param {AnimationState} state - Initial animation state
      * @returns {Promise<PIXI.AnimatedSprite>} Promise that resolves to an animated sprite
      */
-    async createSprite(direction = Direction.NONE, isMoving = false) {
+    async createSprite(state = new AnimationState()) {
         // Get textures for the animation
-        const textures = this.getAnimationTextures(direction, isMoving);
-        console.log('textures', textures);
+        const textures = this.getAnimationTextures(state);
         
         // Create animated sprite
         let sprite;
@@ -96,14 +99,13 @@ export class SpriteManager {
     }
 
     /**
-     * Update a sprite's animation based on direction and movement
+     * Update a sprite's animation based on current state
      * @param {PIXI.AnimatedSprite} sprite - The sprite to update
-     * @param {number} direction - Direction enum value
-     * @param {boolean} isMoving - Whether the entity is moving
+     * @param {AnimationState} state - Current animation state
      */
-    async updateSprite(sprite, direction = Direction.NONE, isMoving = false) {
+    async updateSprite(sprite, state) {
         // Get textures for the animation
-        const textures = this.getAnimationTextures(direction, isMoving);
+        const textures = this.getAnimationTextures(state);
         
         // Ensure proper transparency
         for (const texture of textures) {

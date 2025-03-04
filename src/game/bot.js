@@ -1,7 +1,9 @@
 import * as PIXI from 'pixi.js';
-import { botConfig, AIM_POSITIONS, Direction } from './config.js';
+import { botConfig, Direction } from './config.js';
 import { Entity } from './entity.js';
 import { RegenerationSkill } from './skills.js';
+import { SpriteManager } from './spriteManager.js';
+import { AnimationState } from './AnimationState.js';
 
 /**
  * Object pool for efficient bot reuse
@@ -43,12 +45,14 @@ class BotState {
         this.active = false;
         this.aimDirection = Direction.NONE;
         this.size = botConfig.size;
+        this.animState = new AnimationState();
     }
     
     reset() {
         this.health = botConfig.maxHealth;
         this.active = false;
         this.aimDirection = Direction.NONE;
+        this.animState = new AnimationState();
     }
 }
 
@@ -68,23 +72,30 @@ export class Bot extends Entity {
         this.app = app;
         this.player = player;
         
-        // Create container for bot elements
+        // Create container for bot elements with transparency
         this.container = new PIXI.Container();
+        this.container.sortableChildren = true; // Enable z-index sorting
         
-        // Create main square
-        this.sprite = new PIXI.Graphics()
-            .rect(0, 0, botConfig.size, botConfig.size)
+        // Initialize sprite manager
+        this.spriteManager = null;
+        this.initSpriteManager();
+        this.spritesLoaded = false;
+        this.spriteUpdatePromise = Promise.resolve(); // Track ongoing sprite updates
+        
+        // Create temporary placeholder while sprites load
+        this.placeholder = new PIXI.Graphics()
+            .rect(-botConfig.size/2, -botConfig.size/2, botConfig.size, botConfig.size)
             .fill(botConfig.color);
+            
+        // Placeholder for loading
+        this.placeholder.zIndex = 10;
+        this.container.addChild(this.placeholder);
 
-        // Create inner direction indicator (aim)
-        this.innerSprite = new PIXI.Graphics()
-            .rect(0, 0, botConfig.innerSize, botConfig.innerSize)
-            .fill(botConfig.innerColor);
-        this.innerSprite.visible = true;
-
-        // Create health bar container
+        // Create health bar container with centered positioning
         this.healthBarContainer = new PIXI.Container();
         this.healthBarContainer.y = -botConfig.healthBarOffset - botConfig.healthBarHeight;
+        this.healthBarContainer.x = -botConfig.healthBarWidth/2; // Center health bar
+        this.healthBarContainer.zIndex = 20; // Above sprite
         
         // Create health bar background
         this.healthBarBg = new PIXI.Graphics()
@@ -110,9 +121,7 @@ export class Bot extends Entity {
         this.healthBarContainer.addChild(this.healthBarFill);
         this.healthBarContainer.addChild(this.healthBarBorder);
 
-        // Add sprites to container
-        this.container.addChild(this.sprite);
-        this.container.addChild(this.innerSprite);
+        // Add health bar container to main container
         this.container.addChild(this.healthBarContainer);
 
         // Initialize bot state
@@ -128,27 +137,49 @@ export class Bot extends Entity {
      * @param {number} y - Y position
      * @param {PIXI.Container} stage - The stage to add the bot to
      */
-    init(x, y, stage) {
+    async init(x, y, stage) {
         // Set position
         this.state.x = x;
         this.state.y = y;
         
-        // Reset health
-        this.state.health = botConfig.maxHealth;
+        // Reset state
+        this.state.reset();
         
         // Update health bar
         this.updateHealthBar();
         
-        // Reset appearance
-        this.sprite.clear()
-            .rect(0, 0, botConfig.size, botConfig.size)
-            .fill(botConfig.color);
-            
+        // Initialize sprite manager if needed
+        if (!this.spriteManager) {
+            await this.initSpriteManager();
+        }
+
+        // Load sprite if not loaded
+        if (!this.spritesLoaded && this.spriteManager) {
+            try {
+                this.sprite = await this.spriteManager.createSprite(this.state.animState);
+                
+                // Set sprite scale
+                const scale = (botConfig.size * 2) / Math.max(this.sprite.width, this.sprite.height);
+                this.sprite.scale.set(scale);
+                
+                // Configure sprite
+                this.sprite.alpha = 1;
+                this.sprite.zIndex = 10;
+                
+                // Remove placeholder and add sprite
+                this.container.removeChild(this.placeholder);
+                this.container.addChild(this.sprite);
+                
+                this.spritesLoaded = true;
+            } catch (error) {
+                console.error('Failed to load bot sprite:', error);
+            }
+        }
+        
         // Make everything visible
         this.container.visible = true;
         this.container.alpha = 1;
         this.healthBarContainer.visible = true;
-        this.innerSprite.visible = true;
         
         // Set initial container position
         this.container.x = this.state.x;
@@ -224,8 +255,8 @@ export class Bot extends Entity {
      */
     getAimDirectionToPlayer() {
         const playerPos = this.player.getPosition();
-        const botCenterX = this.state.x + botConfig.size / 2;
-        const botCenterY = this.state.y + botConfig.size / 2;
+        const botCenterX = this.state.x;
+        const botCenterY = this.state.y;
 
         const dx = playerPos.x - botCenterX;
         const dy = playerPos.y - botCenterY;
@@ -248,18 +279,45 @@ export class Bot extends Entity {
     }
 
     /**
-     * Update aim position based on player position
+     * Initialize the sprite manager with loaded assets
      */
-    updateAimPosition() {
-        const newAimDirection = this.getAimDirectionToPlayer();
-        if (this.state.aimDirection !== newAimDirection) {
-            this.state.aimDirection = newAimDirection;
-            
-            // Use lookup table to get position
-            const pos = AIM_POSITIONS[newAimDirection];
-            this.innerSprite.x = pos.x;
-            this.innerSprite.y = pos.y;
+    async initSpriteManager() {
+        try {
+            // Load sprite atlas
+            const spritesheet = await PIXI.Assets.load('/assets/atlas/sprite_atlas.json');
+            this.spriteManager = new SpriteManager(spritesheet);
+        } catch (error) {
+            console.error('Failed to initialize sprite manager:', error);
         }
+    }
+
+    /**
+     * Queue a sprite update to avoid multiple concurrent updates
+     */
+    queueSpriteUpdate() {
+        if (!this.spriteManager) return;
+        // Chain the new update to the previous one
+        this.spriteUpdatePromise = this.spriteUpdatePromise
+            .then(() => {
+                // Update animation state
+                this.state.animState.updateState(
+                    this.state.aimDirection, // Use aim direction for facing
+                    false, // isDucking
+                    false, // isShooting
+                    false, // isExploding
+                    false  // isZapped
+                );
+                
+                // Update sprite animation
+                return this.spriteManager.updateSprite(this.sprite, this.state.animState);
+            })
+            .then(() => {
+                // Update sprite rotation based on facing direction
+                if (this.sprite) {
+                    this.sprite.rotation = this.state.animState.getRotation();
+                }
+            })
+            .catch(err => console.error('Error updating sprite:', err));
     }
 
     /**
@@ -313,8 +371,8 @@ export class Bot extends Entity {
      */
     getPosition() {
         return {
-            x: this.state.x + botConfig.size / 2,
-            y: this.state.y + botConfig.size / 2
+            x: this.state.x,
+            y: this.state.y
         };
     }
 
@@ -366,12 +424,9 @@ export class Bot extends Entity {
     moveTowards(targetX, targetY, otherBots) {
         if (!this.state.active) return;
         
-        const botCenterX = this.state.x + botConfig.size / 2;
-        const botCenterY = this.state.y + botConfig.size / 2;
-        
         // Calculate direction to target
-        const dx = targetX - botCenterX;
-        const dy = targetY - botCenterY;
+        const dx = targetX - this.state.x;
+        const dy = targetY - this.state.y;
         
         // Calculate distance to target
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -393,13 +448,10 @@ export class Bot extends Entity {
             if (bot === this || !bot.isActive()) continue;
             
             // Calculate distance between centers
-            const otherX = bot.state.x + botConfig.size / 2;
-            const otherY = bot.state.y + botConfig.size / 2;
-            const newCenterX = newX + botConfig.size / 2;
-            const newCenterY = newY + botConfig.size / 2;
-            
-            const botDx = newCenterX - otherX;
-            const botDy = newCenterY - otherY;
+            const otherX = bot.state.x;
+            const otherY = bot.state.y;
+            const botDx = newX - otherX;
+            const botDy = newY - otherY;
             const botDistance = Math.sqrt(botDx * botDx + botDy * botDy);
             
             // If too close, adjust position
@@ -438,8 +490,16 @@ export class Bot extends Entity {
         // Update health bar
         this.updateHealthBar();
         
-        // Update aim position
-        this.updateAimPosition();
+        // Update aim direction
+        const newAimDirection = this.getAimDirectionToPlayer();
+        if (this.state.aimDirection !== newAimDirection) {
+            this.state.aimDirection = newAimDirection;
+        }
+        
+        // Update sprite animation
+        if (this.spritesLoaded && this.sprite) {
+            this.queueSpriteUpdate();
+        }
         
         // Get player position
         const playerPos = this.player.getPosition();
