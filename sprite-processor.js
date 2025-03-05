@@ -20,19 +20,13 @@ if (!fs.existsSync(OUTPUT_DIR)) {
 
 let SPRITE_WIDTH;
 let SPRITE_HEIGHT;
+const SPRITES_PER_ROW = 10;
 
-// Get e7*.png files in the source directory, limited to frames 0000-0055
+// Get all e7*.png files in the source directory
 const pngFiles = fs.readdirSync(SOURCE_DIR)
-  .filter(file => file.toLowerCase().startsWith('e7') && file.toLowerCase().endsWith('.png'))
-  .filter(file => {
-    // Extract the numeric part from the filename (e.g., "e7 0001.png" -> "0001")
-    const match = file.match(/\d+/);
-    if (!match) return false;
-    const frameNumber = parseInt(match[0]);
-    return frameNumber <= 55; // Only include frames 0000-0055
-  });
+  .filter(file => file.toLowerCase().startsWith('e7') && file.toLowerCase().endsWith('.png'));
 
-console.log(`Found ${pngFiles.length} e7*.png files to process (frames 0000-0055)`);
+console.log(`Found ${pngFiles.length} e7*.png files to process`);
 
 // Process all files
 async function processAllFiles() {
@@ -70,7 +64,6 @@ async function processAllFiles() {
   for (const file of sortedFiles) {
     try {
       const inputPath = path.join(SOURCE_DIR, file);
-      console.log(`\nReading ${file} (${images.length + 1}/${sortedFiles.length})...`);
 
       const image = sharp(inputPath)
         .resize(SPRITE_WIDTH, SPRITE_HEIGHT, { fit: 'contain' })
@@ -82,14 +75,19 @@ async function processAllFiles() {
       images.push({ input: imageBuffer, raw: imageMetadata });
       
       const frameName = file;
+      // Calculate the position of this frame in the sprite sheet
+      const row = Math.floor(processed / SPRITES_PER_ROW);
+      const col = processed % SPRITES_PER_ROW;
+      const x = col * SPRITE_WIDTH;
+      const y = row * SPRITE_HEIGHT;
+      
       frames[frameName] = {
-        frame: { x: 0, y: 0, w: SPRITE_WIDTH, h: SPRITE_HEIGHT },
+        frame: { x, y, w: SPRITE_WIDTH, h: SPRITE_HEIGHT },
         sourceSize: { w: SPRITE_WIDTH, h: SPRITE_HEIGHT },
         spriteSourceSize: { x: 0, y: 0, w: SPRITE_WIDTH, h: SPRITE_HEIGHT }
       };
 
       processed++;
-      console.log(`Completed ${file} (${processed}/${sortedFiles.length})`);
     } catch (error) {
       console.error(`Error processing ${file}: ${error.message}`);
       errors++;
@@ -102,7 +100,6 @@ async function processAllFiles() {
   }
 
   // Calculate sprite sheet dimensions
-  const SPRITES_PER_ROW = 10;
   const numRows = Math.ceil(images.length / SPRITES_PER_ROW);
   const spriteSheetWidth = SPRITES_PER_ROW * SPRITE_WIDTH;
   const spriteSheetHeight = numRows * SPRITE_HEIGHT;
@@ -139,8 +136,71 @@ async function processAllFiles() {
       scale: 1
     };
 
+    // Organize animations by type and direction
     const animations = {
-      running: sortedFiles // Array of frame names
+      // Standing animations (single frame per direction)
+      standing_n: [sortedFiles[0]],
+      standing_nw: [sortedFiles[1]],
+      standing_w: [sortedFiles[2]],
+      standing_sw: [sortedFiles[3]],
+      standing_s: [sortedFiles[4]],
+      standing_se: [sortedFiles[5]],
+      standing_e: [sortedFiles[6]],
+      standing_ne: [sortedFiles[7]],
+      
+      // Running animations (6 frames per direction)
+      running_n: sortedFiles.slice(8, 14),
+      running_nw: sortedFiles.slice(14, 20),
+      running_w: sortedFiles.slice(20, 26),
+      running_sw: sortedFiles.slice(26, 32),
+      running_s: sortedFiles.slice(32, 38),
+      running_se: sortedFiles.slice(38, 44),
+      running_e: sortedFiles.slice(44, 50),
+      running_ne: sortedFiles.slice(50, 56),
+      
+      // Shooting animations (7 frames per direction)
+      shooting_n: sortedFiles.slice(56, 63),
+      shooting_nw: sortedFiles.slice(63, 70),
+      shooting_w: sortedFiles.slice(70, 77),
+      shooting_sw: sortedFiles.slice(77, 84),
+      shooting_s: sortedFiles.slice(84, 91),
+      shooting_se: sortedFiles.slice(91, 98),
+      shooting_e: sortedFiles.slice(98, 105),
+      shooting_ne: sortedFiles.slice(105, 112),
+
+      // Ducking animations
+      duck_n: sortedFiles.slice(112, 119),
+      duck_nw: sortedFiles.slice(119, 126),
+      duck_w: sortedFiles.slice(126, 133),
+      duck_sw: sortedFiles.slice(133, 140),
+      duck_s: sortedFiles.slice(140, 147),
+      duck_se: sortedFiles.slice(147, 154),
+      duck_e: sortedFiles.slice(154, 161),
+      duck_ne: sortedFiles.slice(161, 168),
+
+      // Crawling animations
+      crawl_n: sortedFiles.slice(168, 175),
+      crawl_nw: sortedFiles.slice(175, 182),
+      crawl_w: sortedFiles.slice(182, 189),
+      crawl_sw: sortedFiles.slice(189, 196),
+      crawl_s: sortedFiles.slice(196, 203),
+      crawl_se: sortedFiles.slice(203, 210),
+      crawl_e: sortedFiles.slice(210, 217),
+      crawl_ne: sortedFiles.slice(217, 224),
+
+      // Standing up animations
+      stand_n: sortedFiles.slice(224, 231),
+      stand_nw: sortedFiles.slice(231, 238),
+      stand_w: sortedFiles.slice(238, 245),
+      stand_sw: sortedFiles.slice(245, 252),
+      stand_s: sortedFiles.slice(252, 259),
+      stand_se: sortedFiles.slice(259, 266),
+      stand_e: sortedFiles.slice(266, 273),
+      stand_ne: sortedFiles.slice(273, 280),
+
+      // Death animations
+      death_zap: sortedFiles.slice(280, 287),
+      death_explode: sortedFiles.slice(287, 294)
     };
 
     const atlasData = {

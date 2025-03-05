@@ -1,134 +1,82 @@
 import * as PIXI from 'pixi.js';
-import { AnimationState } from './AnimationState.js';
 
 /**
- * Manages sprite animations for game entities using a sprite atlas
+ * Manages sprite animations using spritesheets
  */
 export class SpriteManager {
-    /**
-     * Create a new sprite manager
-     * @param {PIXI.Spritesheet} spriteSheet - The sprite sheet object
-     */
-    constructor(spriteSheet) {
-        this.spriteSheet = spriteSheet;
-        this.animations = spriteSheet.animations;
-        this.fallbackMap = this.createFallbackMap();
+    constructor(spritesheet) {
+        this.spritesheet = spritesheet;
+        this.animationData = null;
     }
 
     /**
-     * Create a mapping of animation fallbacks
-     * @returns {Object} Mapping of animation fallbacks
+     * Initialize the spritesheet
      */
-    createFallbackMap() {
-        return {
-            'standing': 'idle',
-            'ducking': 'standing',
-            'duck_moving': 'running',
-            'shooting': 'standing',
-            'death_explode': 'running',
-            'death_zap': 'running'
-        };
+    async initialize() {
+        // Parse the spritesheet to prepare animations
+        await this.spritesheet.parse();
+        
+        // Get the animation data from the spritesheet
+        this.animationData = this.spritesheet.data.animations;
+        
+        // Log available animations for debugging
+        console.log('Available animations:', Object.keys(this.spritesheet.animations));
     }
 
     /**
-     * Get animation textures for the current animation state
-     * @param {AnimationState} state - Current animation state
-     * @returns {Array<PIXI.Texture>} Array of textures for the animation
+     * Create a sprite with the specified animation
+     * @param {string} animationKey - Key for the animation to use
+     * @returns {PIXI.AnimatedSprite} The created sprite
      */
-    getAnimationTextures(state) {
-        // Try to get the current animation
-        let textures = this.animations[state.currentAnimation];
-        
-        // If not found, try the fallback
-        if (!textures && this.fallbackMap[state.currentAnimation]) {
-            textures = this.animations[this.fallbackMap[state.currentAnimation]];
-        }
-        
-        // If still not found, try 'running' as final fallback
-        if (!textures) {
-            textures = this.animations['running'];
-        }
-
-        if (!textures) {
-            console.warn(`No animation found for ${state.currentAnimation}`);
-            return [];
-        }
-
-        return textures;
-    }
-
-    /**
-     * Create a sprite with the appropriate animation
-     * @param {AnimationState} state - Initial animation state
-     * @returns {Promise<PIXI.AnimatedSprite>} Promise that resolves to an animated sprite
-     */
-    async createSprite(state = new AnimationState()) {
-        // Get textures for the animation
-        const textures = this.getAnimationTextures(state);
-        
-        // Create animated sprite
-        let sprite;
-        if (textures && textures.length > 0) {
-            sprite = new PIXI.AnimatedSprite(textures);
-        } else {
-            console.error('No textures found for animation!');
+    createSprite(animationKey) {
+        if (!this.spritesheet.animations[animationKey]) {
+            console.error(`Animation "${animationKey}" not found in spritesheet`);
             return null;
         }
+
+        // Get textures from the spritesheet
+        const textures = this.spritesheet.animations[animationKey];
         
-        // Configure sprite
-        sprite.animationSpeed = 0.15; // Adjust speed as needed
-        sprite.anchor.set(0.5);
+        // Create animated sprite using the textures
+        const sprite = new PIXI.AnimatedSprite(textures);
         
-        // Ensure proper transparency
-        for (const texture of textures) {
-            // Set texture to use nearest neighbor scaling for pixel art
-            if (texture.source) {
-                texture.source.scaleMode = 'nearest';
-            }
-        }
+        // Configure animation properties
+        sprite.animationSpeed = 0.15; // Controls animation speed (frames per update)
+        sprite.loop = true; // Enable looping
         
-        // Set sprite to be fully opaque but with transparency
-        sprite.alpha = 1;
+        // Start the animation - PixiJS will handle updates automatically via its ticker
+        sprite.play();
         
-        // Start animation if it has multiple frames
-        if (textures.length > 1) {
-            sprite.play();
-        }
+        // Store the current animation key for reference
+        sprite.currentAnimation = animationKey;
         
         return sprite;
     }
 
     /**
-     * Update a sprite's animation based on current state
+     * Update a sprite's animation if needed
      * @param {PIXI.AnimatedSprite} sprite - The sprite to update
-     * @param {AnimationState} state - Current animation state
+     * @param {string} animationKey - Key for the new animation
      */
-    async updateSprite(sprite, state) {
-        // Get textures for the animation
-        const textures = this.getAnimationTextures(state);
-        
-        // Ensure proper transparency
-        for (const texture of textures) {
-            // Set texture to use nearest neighbor scaling for pixel art
-            if (texture.source) {
-                texture.source.scaleMode = 'nearest';
+    updateAnimation(sprite, animationKey) {
+        // Only change animation if it's different from the current one
+        if (sprite.currentAnimation !== animationKey) {
+            if (!this.spritesheet.animations[animationKey]) {
+                console.error(`Animation "${animationKey}" not found in spritesheet`);
+                return;
             }
-        }
-        
-        // Only update if the animation has changed
-        if (sprite.textures !== textures) {
-            // Save current animation progress
-            const currentProgress = sprite.currentFrame / Math.max(1, sprite.textures.length);
             
-            // Update textures
-            sprite.textures = textures;
+            // Get the frames for the new animation
+            const frames = this.spritesheet.animations[animationKey];
             
-            // Set appropriate frame based on progress
-            if (textures.length > 1) {
-                sprite.gotoAndPlay(Math.floor(currentProgress * textures.length));
-            } else {
-                sprite.gotoAndStop(0);
-            }
+            // Update the sprite's textures with the new animation frames
+            sprite.textures = frames;
+            
+            // Update tracking
+            sprite.currentAnimation = animationKey;
+            
+            // Reset and play the animation
+            sprite.gotoAndPlay(0);
         }
     }
 }

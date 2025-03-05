@@ -35,13 +35,15 @@ export const playerConfig = {
     
     // Health settings
     maxHealth: 100,
-    healthBarWidth: 32, // Same as player size
+    initialHealth: 50, // Start with 50% health
+    healthBarWidth: 28, // Same as player size
     healthBarHeight: 4,
-    healthBarOffset: 8, // Distance above player
-    healthBarBgColor: 0x333333, // Dark gray
+    healthBarOffset: 8, // Match bot's offset
+    healthBarBgColor: 0x000000, // Black with 50% alpha
+    healthBarBgAlpha: 0.5,
     healthBarFillColor: 0x00ff00, // Green
-    healthBarBorderColor: 0xffffff, // White
-    healthBarBorderThickness: 1
+    healthBarBorderColor: 0x000000, // Black border
+    healthBarBorderThickness: 2 // Thicker border
 };
 
 export const botConfig = {
@@ -54,13 +56,13 @@ export const botConfig = {
     
     // Health settings
     maxHealth: 100,
-    healthBarWidth: 32, // Same as bot size
+    healthBarWidth: 28, // Same as bot size
     healthBarHeight: 4,
     healthBarOffset: 8, // Distance above bot
     healthBarBgColor: 0x333333, // Dark gray
     healthBarFillColor: 0xff0000, // Red
-    healthBarBorderColor: 0xffffff, // White
-    healthBarBorderThickness: 1,
+    healthBarBorderColor: 0x000000, // Black border
+    healthBarBorderThickness: 2, // Thicker border
     
     // Damage settings
     minDamage: 1, // Damage when far away

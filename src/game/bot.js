@@ -3,7 +3,7 @@ import { botConfig, Direction } from './config.js';
 import { Entity } from './entity.js';
 import { RegenerationSkill } from './skills.js';
 import { SpriteManager } from './spriteManager.js';
-import { AnimationState } from './AnimationState.js';
+import { DirectionSuffix, AnimationType } from './AnimationState.js';
 
 /**
  * Object pool for efficient bot reuse
@@ -44,15 +44,17 @@ class BotState {
         this.health = botConfig.maxHealth;
         this.active = false;
         this.aimDirection = Direction.NONE;
+        this.moveDirection = Direction.NONE;
         this.size = botConfig.size;
-        this.animState = new AnimationState();
+        this.isMoving = false;
     }
     
     reset() {
         this.health = botConfig.maxHealth;
         this.active = false;
         this.aimDirection = Direction.NONE;
-        this.animState = new AnimationState();
+        this.moveDirection = Direction.NONE;
+        this.isMoving = false;
     }
 }
 
@@ -80,7 +82,6 @@ export class Bot extends Entity {
         this.spriteManager = null;
         this.initSpriteManager();
         this.spritesLoaded = false;
-        this.spriteUpdatePromise = Promise.resolve(); // Track ongoing sprite updates
         
         // Create temporary placeholder while sprites load
         this.placeholder = new PIXI.Graphics()
@@ -99,12 +100,18 @@ export class Bot extends Entity {
         
         // Create health bar background
         this.healthBarBg = new PIXI.Graphics()
-            .rect(0, 0, botConfig.healthBarWidth, botConfig.healthBarHeight)
-            .fill(botConfig.healthBarBgColor);
+            .rect(0, -20, botConfig.healthBarWidth, botConfig.healthBarHeight)
+            .fill(botConfig.healthBarBgColor)
+            .setStrokeStyle({
+                width: 1.5,
+                color: 0x000000,
+                alignment: 0.5 // Center the stroke
+            })
+            .stroke();
             
         // Create health bar fill
         this.healthBarFill = new PIXI.Graphics()
-            .rect(0, 0, botConfig.healthBarWidth, botConfig.healthBarHeight)
+            .rect(0, -20, botConfig.healthBarWidth, botConfig.healthBarHeight)
             .fill(botConfig.healthBarFillColor);
             
         // Create health bar border
@@ -114,7 +121,7 @@ export class Bot extends Entity {
                 width: botConfig.healthBarBorderThickness,
                 color: botConfig.healthBarBorderColor
             })
-            .rect(0, 0, botConfig.healthBarWidth, botConfig.healthBarHeight);
+            .rect(0, -20, botConfig.healthBarWidth, botConfig.healthBarHeight);
             
         // Add health bar elements to container
         this.healthBarContainer.addChild(this.healthBarBg);
@@ -156,21 +163,27 @@ export class Bot extends Entity {
         // Load sprite if not loaded
         if (!this.spritesLoaded && this.spriteManager) {
             try {
-                this.sprite = await this.spriteManager.createSprite(this.state.animState);
+                // Create initial sprite with shooting animation
+                console.log('Creating bot sprite with shooting_s animation');
+                this.sprite = this.spriteManager.createSprite('shooting_s');
                 
-                // Set sprite scale
-                const scale = (botConfig.size * 2) / Math.max(this.sprite.width, this.sprite.height);
-                this.sprite.scale.set(scale);
+                if (!this.sprite) {
+                    console.error('Failed to create bot sprite');
+                    return;
+                }
                 
                 // Configure sprite
-                this.sprite.alpha = 1;
+                const scale = (botConfig.size * 2) / Math.max(this.sprite.width, this.sprite.height);
+                this.sprite.scale.set(scale);
+                this.sprite.anchor.set(0.5);
                 this.sprite.zIndex = 10;
                 
-                // Remove placeholder and add sprite
+                // Update display
                 this.container.removeChild(this.placeholder);
                 this.container.addChild(this.sprite);
                 
                 this.spritesLoaded = true;
+                console.log('Bot sprite loaded successfully');
             } catch (error) {
                 console.error('Failed to load bot sprite:', error);
             }
@@ -245,7 +258,7 @@ export class Bot extends Entity {
         
         // Update health bar fill
         this.healthBarFill.clear()
-            .rect(0, 0, fillWidth, botConfig.healthBarHeight)
+            .rect(0, -20, fillWidth, botConfig.healthBarHeight)
             .fill(botConfig.healthBarFillColor);
     }
 
@@ -279,45 +292,51 @@ export class Bot extends Entity {
     }
 
     /**
-     * Initialize the sprite manager with loaded assets
+     * Initialize the sprite manager
      */
     async initSpriteManager() {
         try {
             // Load sprite atlas
             const spritesheet = await PIXI.Assets.load('/assets/atlas/sprite_atlas.json');
             this.spriteManager = new SpriteManager(spritesheet);
+            await this.spriteManager.initialize();
         } catch (error) {
             console.error('Failed to initialize sprite manager:', error);
         }
     }
 
     /**
-     * Queue a sprite update to avoid multiple concurrent updates
+     * Get current animation key based on state
+     * @returns {string} Animation key
      */
-    queueSpriteUpdate() {
-        if (!this.spriteManager) return;
-        // Chain the new update to the previous one
-        this.spriteUpdatePromise = this.spriteUpdatePromise
-            .then(() => {
-                // Update animation state
-                this.state.animState.updateState(
-                    this.state.aimDirection, // Use aim direction for facing
-                    false, // isDucking
-                    false, // isShooting
-                    false, // isExploding
-                    false  // isZapped
-                );
-                
-                // Update sprite animation
-                return this.spriteManager.updateSprite(this.sprite, this.state.animState);
-            })
-            .then(() => {
-                // Update sprite rotation based on facing direction
-                if (this.sprite) {
-                    this.sprite.rotation = this.state.animState.getRotation();
-                }
-            })
-            .catch(err => console.error('Error updating sprite:', err));
+    getAnimationKey() {
+        const direction = this.state.moveDirection === Direction.NONE 
+            ? this.state.aimDirection 
+            : this.state.moveDirection;
+            
+        const suffix = DirectionSuffix[direction];
+
+        // If moving, use running animation
+        if (this.state.isMoving) {
+            return `${AnimationType.RUNNING}_${suffix}`;
+        }
+
+        // If not moving, use shooting animation
+        return `${AnimationType.SHOOTING}_${suffix}`;
+    }
+
+    /**
+     * Update sprite animation based on current state
+     * Only called when animation needs to change
+     */
+    updateAnimation() {
+        if (!this.spritesLoaded || !this.sprite) {
+            console.log('Cannot update bot animation: sprites not loaded or sprite missing');
+            return;
+        }
+        
+        const animationKey = this.getAnimationKey();
+        this.spriteManager.updateAnimation(this.sprite, animationKey);
     }
 
     /**
@@ -424,19 +443,19 @@ export class Bot extends Entity {
     moveTowards(targetX, targetY, otherBots) {
         if (!this.state.active) return;
         
-        // Calculate direction to target
-        const dx = targetX - this.state.x;
-        const dy = targetY - this.state.y;
+        // Calculate vector to target
+        const targetDx = targetX - this.state.x;
+        const targetDy = targetY - this.state.y;
         
         // Calculate distance to target
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const targetDistance = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
         
         // Only move if not too close to target
-        if (distance <= botConfig.minDistanceToPlayer) return;
+        if (targetDistance <= botConfig.minDistanceToPlayer) return;
         
         // Normalize direction
-        const normalizedDx = dx / distance;
-        const normalizedDy = dy / distance;
+        const normalizedDx = targetDx / targetDistance;
+        const normalizedDy = targetDy / targetDistance;
         
         // Calculate new position
         let newX = this.state.x + normalizedDx * botConfig.speed;
@@ -471,9 +490,36 @@ export class Bot extends Entity {
         newX = Math.max(0, Math.min(this.app.screen.width - botConfig.size, newX));
         newY = Math.max(0, Math.min(this.app.screen.height - botConfig.size, newY));
         
-        // Update position
-        this.state.x = newX;
-        this.state.y = newY;
+        // Calculate actual movement vector
+        const movementDx = newX - this.state.x;
+        const movementDy = newY - this.state.y;
+        
+        // Only update position and direction if actually moving
+        if (Math.abs(movementDx) > 0.01 || Math.abs(movementDy) > 0.01) {
+            // Update position
+            this.state.x = newX;
+            this.state.y = newY;
+            
+            // Update movement state
+            this.state.isMoving = true;
+            
+            // Calculate movement direction based on movement vector
+            const angle = Math.atan2(movementDy, movementDx);
+            const PI_8 = Math.PI / 8;
+            
+            // Use angle to determine direction (8 directions)
+            if (angle > -PI_8 && angle <= PI_8) this.state.moveDirection = Direction.RIGHT;
+            else if (angle > PI_8 && angle <= 3 * PI_8) this.state.moveDirection = Direction.DOWN_RIGHT;
+            else if (angle > 3 * PI_8 && angle <= 5 * PI_8) this.state.moveDirection = Direction.DOWN;
+            else if (angle > 5 * PI_8 && angle <= 7 * PI_8) this.state.moveDirection = Direction.DOWN_LEFT;
+            else if (angle > 7 * PI_8 || angle <= -7 * PI_8) this.state.moveDirection = Direction.LEFT;
+            else if (angle > -7 * PI_8 && angle <= -5 * PI_8) this.state.moveDirection = Direction.UP_LEFT;
+            else if (angle > -5 * PI_8 && angle <= -3 * PI_8) this.state.moveDirection = Direction.UP;
+            else if (angle > -3 * PI_8 && angle <= -PI_8) this.state.moveDirection = Direction.UP_RIGHT;
+        } else {
+            this.state.isMoving = false;
+            this.state.moveDirection = Direction.NONE;
+        }
     }
 
     /**
@@ -490,15 +536,15 @@ export class Bot extends Entity {
         // Update health bar
         this.updateHealthBar();
         
+        // Store previous states
+        const prevAimDirection = this.state.aimDirection;
+        const prevMoveDirection = this.state.moveDirection;
+        const prevIsMoving = this.state.isMoving;
+        
         // Update aim direction
         const newAimDirection = this.getAimDirectionToPlayer();
-        if (this.state.aimDirection !== newAimDirection) {
+        if (prevAimDirection !== newAimDirection) {
             this.state.aimDirection = newAimDirection;
-        }
-        
-        // Update sprite animation
-        if (this.spritesLoaded && this.sprite) {
-            this.queueSpriteUpdate();
         }
         
         // Get player position
@@ -506,7 +552,16 @@ export class Bot extends Entity {
         
         // Move towards player while avoiding collisions
         this.moveTowards(playerPos.x, playerPos.y, otherBots);
-        
+
+        // Update animation if state changed
+        if (prevAimDirection !== this.state.aimDirection ||
+            prevMoveDirection !== this.state.moveDirection ||
+            prevIsMoving !== this.state.isMoving) {
+            if (this.spritesLoaded && this.sprite) {
+                this.updateAnimation();
+            }
+        }
+
         // Update container position
         this.container.x = Math.floor(this.state.x);
         this.container.y = Math.floor(this.state.y);
