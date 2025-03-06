@@ -9,7 +9,7 @@ import { ProximityDamageSkill, ConeAttackSkill } from './game/skills.js';
 /**
  * Game class - manages the game loop and entities
  */
-class Game {
+export class Game {
     constructor() {
         this.entities = [];
         this.lastTick = Date.now();
