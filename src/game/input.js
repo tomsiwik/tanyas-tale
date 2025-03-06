@@ -14,12 +14,12 @@ class InputHandler {
         this.mouseY = 0;
 
         // Set up event listeners
-        window.addEventListener('keydown', this.handleKeyDown.bind(this));
-        window.addEventListener('keyup', this.handleKeyUp.bind(this));
-        window.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        globalThis.addEventListener('keydown', this.handleKeyDown.bind(this));
+        globalThis.addEventListener('keyup', this.handleKeyUp.bind(this));
+        globalThis.addEventListener('mousemove', this.handleMouseMove.bind(this));
         
         // Add blur event to reset keys when window loses focus
-        window.addEventListener('blur', this.reset.bind(this));
+        globalThis.addEventListener('blur', this.reset.bind(this));
     }
 
     reset() {

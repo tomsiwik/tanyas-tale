@@ -1,10 +1,10 @@
 export const config = {
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: globalThis.innerWidth,
+    height: globalThis.innerHeight,
     backgroundColor: 0x1099bb,
-    resolution: window.devicePixelRatio || 1,
+    resolution: globalThis.devicePixelRatio || 1,
     autoDensity: true,
-    resizeTo: window,
+    resizeTo: globalThis,
     eventMode: 'auto',
     eventFeatures: {
         move: true,
