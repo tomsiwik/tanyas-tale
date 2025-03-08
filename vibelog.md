@@ -21,6 +21,18 @@ Requirements:
 
 ## Recent Improvements
 
+- [x] Enhanced bot movement smoothing and direction fixes
+  - [x] Increased direction stability with stronger smoothing (0.05 factor)
+  - [x] Corrected bot facing direction to properly track player
+  - [x] Improved animation state transitions with longer cooldowns (500ms)
+  - [x] Fixed direction calculation using bot's actual position
+- [x] Implemented bot movement smoothing to prevent jittering
+  - [x] Added direction interpolation for natural motion
+  - [x] Created direction change cooldown system
+  - [x] Integrated dot product tracking for direction stability
+- [x] Fixed bot animation direction to correctly reflect movement
+- [x] Improved bot standing animation to face player when stopped
+- [x] Fixed bot sprite scaling to match player's dynamic scaling system
 - [x] Reorganized test files to be adjacent to implementation files
 - [x] Disabled screenshot creation in browser tests
 - [x] Removed **tests** directories for cleaner organization

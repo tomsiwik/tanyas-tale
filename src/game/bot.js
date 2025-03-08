@@ -42,20 +42,33 @@ class ObjectPool {
  */
 class BotState {
   constructor() {
+    this.moveDirection = Direction.NONE;
+    this.aimDirection = Direction.NONE;
+    this.x = 0;
+    this.y = 0;
     this.health = botConfig.maxHealth;
     this.active = false;
-    this.aimDirection = Direction.NONE;
-    this.moveDirection = Direction.NONE;
-    this.size = botConfig.size;
     this.isMoving = false;
+
+    // Direction smoothing properties
+    this.desiredDirection = { x: 0, y: 0 };
+    this.smoothedDirection = { x: 0, y: 0 };
+    this.directionChangeTime = 0;
   }
 
   reset() {
+    this.moveDirection = Direction.NONE;
+    this.aimDirection = Direction.NONE;
+    this.x = 0;
+    this.y = 0;
     this.health = botConfig.maxHealth;
     this.active = false;
-    this.aimDirection = Direction.NONE;
-    this.moveDirection = Direction.NONE;
     this.isMoving = false;
+
+    // Reset smoothing properties
+    this.desiredDirection = { x: 0, y: 0 };
+    this.smoothedDirection = { x: 0, y: 0 };
+    this.directionChangeTime = 0;
   }
 }
 
@@ -188,8 +201,11 @@ export class Bot extends Entity {
           );
           this.placeholder.visible = true;
         } else {
-          // Configure sprite
-          this.sprite.scale.set(1);
+          // Configure sprite using dynamic scaling like the player
+          const scale =
+            (botConfig.size * 2) /
+            Math.max(this.sprite.width, this.sprite.height);
+          this.sprite.scale.set(scale);
           this.sprite.anchor.set(0.5);
           this.sprite.zIndex = 10; // Set sprite z-index
           this.container.addChild(this.sprite);
@@ -276,11 +292,10 @@ export class Bot extends Entity {
    */
   getAimDirectionToPlayer() {
     const playerPos = this.player.getPosition();
-    const botCenterX = this.state.x;
-    const botCenterY = this.state.y;
+    const botPos = this.getPosition();
 
-    const dx = playerPos.x - botCenterX;
-    const dy = playerPos.y - botCenterY;
+    const dx = playerPos.x - botPos.x;
+    const dy = playerPos.y - botPos.y;
 
     // Determine primary direction based on angle
     const angle = Math.atan2(dy, dx);
@@ -323,10 +338,11 @@ export class Bot extends Entity {
    * @returns {string} Animation key
    */
   getAnimationKey() {
-    const direction =
-      this.state.moveDirection === Direction.NONE
-        ? this.state.aimDirection
-        : this.state.moveDirection;
+    // Only use moveDirection when actually moving
+    // When stopped, use the aimDirection to face the player
+    const direction = this.state.isMoving
+      ? this.state.moveDirection
+      : this.state.aimDirection;
 
     const suffix = DirectionSuffix[direction];
 
@@ -482,6 +498,8 @@ export class Bot extends Entity {
       }
       // Set not moving when stopped
       this.state.isMoving = false;
+      this.state.desiredDirection = { x: 0, y: 0 };
+      this.state.smoothedDirection = { x: 0, y: 0 };
       return;
     }
 
@@ -491,6 +509,9 @@ export class Bot extends Entity {
     // Normalize direction
     const normalizedDx = targetDx / targetDistance;
     const normalizedDy = targetDy / targetDistance;
+
+    // Store the desired direction
+    this.state.desiredDirection = { x: normalizedDx, y: normalizedDy };
 
     // Calculate repulsion vector from other bots
     let repulsionX = 0;
@@ -517,9 +538,16 @@ export class Bot extends Entity {
       }
     }
 
-    // Combine target attraction and bot repulsion
-    let velocityX = normalizedDx + repulsionX;
-    let velocityY = normalizedDy + repulsionY;
+    // Apply smoothing to the direction
+    this.smoothDirection();
+
+    // Use smoothed direction instead of directly calculated direction
+    let velocityX = this.state.smoothedDirection.x;
+    let velocityY = this.state.smoothedDirection.y;
+
+    // Add repulsion after smoothing for consistent speed
+    velocityX += repulsionX;
+    velocityY += repulsionY;
 
     // Normalize combined vector
     const combinedLength = Math.sqrt(
@@ -535,6 +563,9 @@ export class Bot extends Entity {
       const movementComponent = this.getComponent("movement");
       if (movementComponent) {
         movementComponent.setVelocity({ x: velocityX, y: velocityY });
+
+        // Always update the movement direction with the smoothed velocity
+        this.updateDirectionFromVector(velocityX, velocityY);
       }
     } else {
       // Legacy direct position update
@@ -558,6 +589,52 @@ export class Bot extends Entity {
     }
   }
 
+  /**
+   * Smooth the bot's direction to prevent jittering
+   */
+  smoothDirection() {
+    const now = Date.now();
+    const timeSinceLastChange = now - this.state.directionChangeTime;
+
+    // Increase smoothing factor for more stability
+    // Higher values (closer to 1.0) = faster response but more jitter
+    // Lower values (closer to 0.0) = slower response but smoother movement
+    const smoothingFactor = 0.05; // Reduced from 0.1 for smoother movement
+
+    // Increase cooldown between significant direction changes
+    const directionChangeCooldown = 500; // Increased from 300ms
+
+    // Calculate smooth direction with interpolation
+    this.state.smoothedDirection.x =
+      this.state.smoothedDirection.x * (1 - smoothingFactor) +
+      this.state.desiredDirection.x * smoothingFactor;
+    this.state.smoothedDirection.y =
+      this.state.smoothedDirection.y * (1 - smoothingFactor) +
+      this.state.desiredDirection.y * smoothingFactor;
+
+    // Normalize the smoothed direction
+    const length = Math.sqrt(
+      this.state.smoothedDirection.x * this.state.smoothedDirection.x +
+        this.state.smoothedDirection.y * this.state.smoothedDirection.y
+    );
+
+    if (length > 0) {
+      this.state.smoothedDirection.x /= length;
+      this.state.smoothedDirection.y /= length;
+    }
+
+    // Use a stricter threshold for direction changes
+    // Only count very significant direction changes (smaller dot product = bigger angle)
+    const dotProduct =
+      this.state.smoothedDirection.x * this.state.desiredDirection.x +
+      this.state.smoothedDirection.y * this.state.desiredDirection.y;
+
+    // Only register significant direction changes and reset cooldown
+    if (dotProduct < 0.5 && timeSinceLastChange > directionChangeCooldown) {
+      this.state.directionChangeTime = now;
+    }
+  }
+
   updateDirectionFromVector(dx, dy) {
     // Determine if movement is significant
     const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
@@ -571,7 +648,11 @@ export class Bot extends Entity {
     if (!isMoving) return;
 
     // Calculate direction based on angle
+    // We need to correct the angle calculation for the bot's movement direction
+    // This determines which way the bot faces when moving
     const angle = Math.atan2(dy, dx);
+
+    // Map angle to octant (8 directions)
     const octant = Math.floor((((angle + Math.PI) * 4) / Math.PI + 0.5) % 8);
 
     // Map octants to directions
@@ -640,6 +721,17 @@ export class Bot extends Entity {
     // Update position from components if available
     const movementComponent = this.getComponent("movement");
     if (movementComponent) {
+      // Get velocity before updating position
+      const velocity = movementComponent.getVelocity();
+
+      // Check if bot is stopped and update direction if needed
+      if (Math.abs(velocity.x) < 0.01 && Math.abs(velocity.y) < 0.01) {
+        this.state.isMoving = false;
+        // When stopped, use aim direction to face player
+        this.state.moveDirection = this.state.aimDirection;
+      }
+
+      // Update position
       movementComponent.update(deltaTime);
       const pos = this.getPosition();
       this.container.x = Math.floor(pos.x);
