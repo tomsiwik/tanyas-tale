@@ -7,6 +7,8 @@ export default defineConfig({
       enabled: true,
       instances: [{ browser: "chromium" }],
       headless: true,
+      screenshot: false,
+      screenshotFailures: false,
     },
     include: ["src/**/*.{test,spec}.{js,ts}"],
     exclude: ["**/*.unit.test.js"],

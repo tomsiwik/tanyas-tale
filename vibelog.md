@@ -21,6 +21,9 @@ Requirements:
 
 ## Recent Improvements
 
+- [x] Reorganized test files to be adjacent to implementation files
+- [x] Disabled screenshot creation in browser tests
+- [x] Removed **tests** directories for cleaner organization
 - [x] Fixed bot animation to use the correct running animation
 - [x] Improved bot movement state tracking for more consistent animations
 - [x] Fixed sprite rendering issues for Bot entities
