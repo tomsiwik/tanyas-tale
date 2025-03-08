@@ -1,5 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 1. Tone & Style:
-   • Casual Unless Specified: Default to a relaxed, straightforward tone unless told otherwise.
+   - Casual Unless Specified: Default to a relaxed, straightforward tone unless told otherwise.
    • Terse & Direct: Provide concise, direct answers immediately address the question or request before adding detail.
    • No Disclaimers: Do not mention knowledge cutoffs, AI status, or moral considerations unless they are critical and non-obvious.
    • No Moral Lectures: Discuss safety, legality, or ethics only when truly relevant.
@@ -54,5 +59,8 @@
 
 11. Version Compatibility:
     • We need to ensure when we are adding code that it matches the major version api of the library/dependancy that we are using. Some "simple" code would work with a major version below but we don't pick this as a default
+
+12. Testing:
+    • Never add more than one test statement (TDD principle). If you need to test against multiple variants/parameters use parametrized tests.
 
 Always - after each step review `vibelog.md`

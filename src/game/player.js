@@ -5,6 +5,9 @@ import { Entity } from "./entity.js";
 import { SpriteManager } from "./spriteManager.js";
 import { DirectionSuffix, AnimationType } from "./AnimationState.js";
 import { debug } from "../utils/debug.js";
+import { PositionComponent } from "../core/components/PositionComponent.js";
+import { MovementComponent } from "../core/components/MovementComponent.js";
+import { FeatureFlags } from "../core/feature-flags.js";
 
 /**
  * Player state class
@@ -17,8 +20,6 @@ class PlayerState {
     this.health = playerConfig.initialHealth;
     this.size = playerConfig.size;
     this.active = true;
-    this.x = 0;
-    this.y = 0;
   }
 }
 
@@ -41,14 +42,24 @@ export class Player extends Entity {
 
     const centerX = Math.floor(app.screen.width / 2);
     const centerY = Math.floor(app.screen.height / 2);
-    this.setPosition(centerX, centerY);
 
+    if (FeatureFlags.USE_POSITION_COMPONENT) {
+      this.addComponent(
+        new PositionComponent(this, { x: centerX, y: centerY })
+      );
+    }
+    if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
+      this.addComponent(new MovementComponent(this));
+    }
+
+    this.setPosition(centerX, centerY);
     this.initSpriteManager();
   }
 
   setupGraphics() {
     this.container = new PIXI.Container();
     this.container.sortableChildren = true;
+    this.container.zIndex = 10;
 
     this.setupPlaceholder();
     this.setupHealthBar();
@@ -66,7 +77,7 @@ export class Player extends Entity {
       )
       .fill(playerConfig.color);
 
-    this.placeholder.zIndex = 10;
+    this.placeholder.zIndex = 20;
     this.container.addChild(this.placeholder);
   }
 
@@ -74,7 +85,7 @@ export class Player extends Entity {
     this.healthBarContainer = new PIXI.Container();
     this.healthBarContainer.y =
       -playerConfig.healthBarOffset - playerConfig.healthBarHeight;
-    this.healthBarContainer.zIndex = 20;
+    this.healthBarContainer.zIndex = 40;
 
     this.healthBarBg = new PIXI.Graphics()
       .rect(
@@ -173,30 +184,32 @@ export class Player extends Entity {
    * Get aim direction from mouse position using angle-based lookup
    * @returns {Direction} Direction enum value
    */
-  getAimDirectionFromMouse() {
-    const mouse = input.getMousePosition();
+  getAimDirectionFromMouse(mousePos) {
     const pos = this.getPosition();
-    const dx = mouse.x - pos.x;
-    const dy = mouse.y - pos.y;
+    const dx = mousePos.x - pos.x;
+    const dy = mousePos.y - pos.y;
 
     if (Math.abs(dx) < playerConfig.size && Math.abs(dy) < playerConfig.size) {
       return Direction.NONE;
     }
 
-    const angle = (Math.atan2(dy, dx) + 2 * Math.PI) % (2 * Math.PI);
-    const sector = Math.floor(
-      ((angle + Math.PI / 8) % (2 * Math.PI)) / (Math.PI / 4)
-    );
+    // Calculate angle in radians, normalize to [0, 2π]
+    // Note: We negate dy because screen coordinates have y increasing downwards
+    const angle = (Math.atan2(-dy, dx) + 2 * Math.PI) % (2 * Math.PI);
 
+    // Convert angle to 8 sectors (45° each)
+    const sector = Math.floor(((angle * 4) / Math.PI + 0.5) % 8);
+
+    // Map sectors to directions, starting from right and going counter-clockwise
     const directionMap = [
-      Direction.RIGHT,
-      Direction.DOWN_RIGHT,
-      Direction.DOWN,
-      Direction.DOWN_LEFT,
-      Direction.LEFT,
-      Direction.UP_LEFT,
-      Direction.UP,
-      Direction.UP_RIGHT,
+      Direction.RIGHT, // 0°
+      Direction.UP_RIGHT, // 45°
+      Direction.UP, // 90°
+      Direction.UP_LEFT, // 135°
+      Direction.LEFT, // 180°
+      Direction.DOWN_LEFT, // 225°
+      Direction.DOWN, // 270°
+      Direction.DOWN_RIGHT, // 315°
     ];
 
     return directionMap[sector];
@@ -248,55 +261,47 @@ export class Player extends Entity {
    * @param {number} speed - Movement speed
    */
   updatePosition(direction, speed) {
-    const previousDirection = this.state.moveDirection;
-    this.state.moveDirection = direction;
+    if (!this.state.active) return;
 
-    if (direction === Direction.NONE) {
-      this.state.aimDirection = previousDirection;
+    const movementComponent = this.getComponent("movement");
+    const positionComponent = this.getComponent("position");
+
+    if (movementComponent && positionComponent) {
+      const velocity = {
+        x:
+          (direction & Direction.RIGHT ? 1 : 0) -
+          (direction & Direction.LEFT ? 1 : 0),
+        y:
+          (direction & Direction.DOWN ? 1 : 0) -
+          (direction & Direction.UP ? 1 : 0),
+      };
+
+      const length = Math.sqrt(
+        velocity.x * velocity.x + velocity.y * velocity.y
+      );
+      if (length > 0) {
+        velocity.x = (velocity.x / length) * speed;
+        velocity.y = (velocity.y / length) * speed;
+      }
+
+      movementComponent.setVelocity(velocity);
+    } else {
+      const dx =
+        (direction & Direction.RIGHT ? 1 : 0) -
+        (direction & Direction.LEFT ? 1 : 0);
+      const dy =
+        (direction & Direction.DOWN ? 1 : 0) -
+        (direction & Direction.UP ? 1 : 0);
+
+      const length = Math.sqrt(dx * dx + dy * dy);
+      if (length > 0) {
+        const normalizedDx = (dx / length) * speed;
+        const normalizedDy = (dy / length) * speed;
+
+        const pos = this.getPosition();
+        this.setPosition(pos.x + normalizedDx, pos.y + normalizedDy);
+      }
     }
-
-    let moveX = 0;
-    let moveY = 0;
-
-    if (
-      direction === Direction.RIGHT ||
-      direction === Direction.UP_RIGHT ||
-      direction === Direction.DOWN_RIGHT
-    ) {
-      moveX = 1;
-    } else if (
-      direction === Direction.LEFT ||
-      direction === Direction.UP_LEFT ||
-      direction === Direction.DOWN_LEFT
-    ) {
-      moveX = -1;
-    }
-
-    if (
-      direction === Direction.DOWN ||
-      direction === Direction.DOWN_RIGHT ||
-      direction === Direction.DOWN_LEFT
-    ) {
-      moveY = 1;
-    } else if (
-      direction === Direction.UP ||
-      direction === Direction.UP_RIGHT ||
-      direction === Direction.UP_LEFT
-    ) {
-      moveY = -1;
-    }
-
-    if (moveX !== 0 && moveY !== 0) {
-      const normalizer = 1 / Math.sqrt(2);
-      moveX *= normalizer;
-      moveY *= normalizer;
-    }
-
-    moveX *= speed;
-    moveY *= speed;
-
-    this.setVelocity(moveX, moveY);
-    this.updateAnimation();
   }
 
   /**
@@ -350,7 +355,12 @@ export class Player extends Entity {
    * @returns {Object} The player's position {x, y}
    */
   getPosition() {
-    return { x: this.state.x, y: this.state.y };
+    const positionComponent = this.getComponent("position");
+    if (positionComponent) {
+      const pos = positionComponent.getPosition();
+      return { x: pos.x, y: pos.y };
+    }
+    return { x: this.container.x, y: this.container.y };
   }
 
   /**
@@ -359,12 +369,12 @@ export class Player extends Entity {
    * @param {number} y - The y coordinate
    */
   setPosition(x, y) {
-    this.state.x = x;
-    this.state.y = y;
-    if (this.container) {
-      this.container.x = x;
-      this.container.y = y;
+    const positionComponent = this.getComponent("position");
+    if (positionComponent) {
+      positionComponent.setPosition({ x, y });
     }
+    this.container.x = x;
+    this.container.y = y;
   }
 
   /**
@@ -389,20 +399,30 @@ export class Player extends Entity {
    * @param {Array} targets - Potential targets for skills
    */
   tick(deltaTime, targets = []) {
-    super.tick(deltaTime, targets);
+    if (!this.state.active) return;
 
-    const pos = this.getPosition();
-    const velocity = this.getVelocity();
-    const seconds = deltaTime / 1000;
+    // 1. Get input and update state
+    const moveDirection = input.getDirection();
+    this.state.moveDirection = moveDirection;
+    this.state.isDucking = input.isDucking();
 
-    this.setPosition(
-      pos.x + velocity.x * seconds,
-      pos.y + velocity.y * seconds
-    );
+    const mousePos = input.getMousePosition();
+    this.state.aimDirection = this.getAimDirectionFromMouse(mousePos);
 
-    const currentKey = this.getAnimationKey();
-    if (this.sprite && this.sprite.currentAnimationKey !== currentKey) {
-      this.updateAnimation();
+    // 2. Update velocity based on input
+    this.updatePosition(moveDirection, playerConfig.speed);
+
+    // 3. Apply movement after velocity is set
+    const movementComponent = this.getComponent("movement");
+    if (movementComponent) {
+      movementComponent.update(deltaTime);
+      const pos = this.getPosition();
+      this.container.x = pos.x;
+      this.container.y = pos.y;
     }
+
+    // 4. Update visuals
+    this.updateAnimation();
+    this.updateHealthBar();
   }
 }

@@ -12,22 +12,17 @@ export class Entity extends CoreEntity {
     super();
     this.skills = [];
     this.effects = [];
-    this.x = 0;
-    this.y = 0;
-    this.velocityX = 0;
-    this.velocityY = 0;
+    this.components = new Map();
 
     if (FeatureFlags.USE_POSITION_COMPONENT) {
-      this.positionComponent = new PositionComponent(this, {
-        x: this.x,
-        y: this.y,
-      });
-      this.addComponent("position", this.positionComponent);
+      this.addComponent(
+        "position",
+        new PositionComponent(this, { x: 0, y: 0 })
+      );
     }
 
     if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
-      this.movementComponent = new MovementComponent(this);
-      this.addComponent("movement", this.movementComponent);
+      this.addComponent("movement", new MovementComponent(this));
     }
   }
 
@@ -37,14 +32,9 @@ export class Entity extends CoreEntity {
    * @param {Array} targets - Potential targets for skills
    */
   tick(deltaTime, targets = []) {
-    if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
-      this.movementComponent.update(deltaTime);
-      const pos = this.getPosition();
-      this.x = pos.x;
-      this.y = pos.y;
-    } else {
-      this.x += this.velocityX * (deltaTime / 1000);
-      this.y += this.velocityY * (deltaTime / 1000);
+    const movementComponent = this.getComponent("movement");
+    if (movementComponent) {
+      movementComponent.update(deltaTime);
     }
 
     this.processEffects(deltaTime);
@@ -120,13 +110,11 @@ export class Entity extends CoreEntity {
    * @returns {Object} The entity's position {x, y}
    */
   getPosition() {
-    if (FeatureFlags.USE_POSITION_COMPONENT) {
-      const pos = this.positionComponent.getPosition();
-      this.x = pos.x;
-      this.y = pos.y;
-      return pos;
+    const positionComponent = this.getComponent("position");
+    if (positionComponent) {
+      return positionComponent.getPosition();
     }
-    return { x: this.x, y: this.y };
+    return { x: 0, y: 0 };
   }
 
   /**
@@ -135,11 +123,10 @@ export class Entity extends CoreEntity {
    * @param {number} y - The y coordinate
    */
   setPosition(x, y) {
-    if (FeatureFlags.USE_POSITION_COMPONENT) {
-      this.positionComponent.setPosition({ x, y });
+    const positionComponent = this.getComponent("position");
+    if (positionComponent) {
+      positionComponent.setPosition({ x, y });
     }
-    this.x = x;
-    this.y = y;
   }
 
   /**
@@ -156,11 +143,10 @@ export class Entity extends CoreEntity {
    * @param {number} y - The y velocity
    */
   setVelocity(x, y) {
-    if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
-      this.movementComponent.setVelocity({ x, y });
+    const movementComponent = this.getComponent("movement");
+    if (movementComponent) {
+      movementComponent.setVelocity({ x, y });
     }
-    this.velocityX = x;
-    this.velocityY = y;
   }
 
   /**
@@ -168,13 +154,18 @@ export class Entity extends CoreEntity {
    * @returns {Object} The entity's velocity {x, y}
    */
   getVelocity() {
-    if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
-      return this.movementComponent.getVelocity();
+    const movementComponent = this.getComponent("movement");
+    if (movementComponent) {
+      return movementComponent.getVelocity();
     }
-    return { x: this.velocityX, y: this.velocityY };
+    return { x: 0, y: 0 };
   }
 
   addComponent(name, component) {
     this.components.set(name, component);
+  }
+
+  getComponent(name) {
+    return this.components.get(name);
   }
 }

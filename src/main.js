@@ -37,6 +37,9 @@ export class Game {
       // Add canvas to page
       document.querySelector("#app").appendChild(this.app.canvas);
 
+      // Enable z-index sorting on the main stage
+      this.app.stage.sortableChildren = true;
+
       // Hide the default cursor
       document.body.style.cursor = "none";
 

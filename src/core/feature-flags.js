@@ -4,8 +4,8 @@
  */
 export const FeatureFlags = {
   // Component flags
-  USE_POSITION_COMPONENT: false,
-  USE_MOVEMENT_COMPONENT: false,
+  USE_POSITION_COMPONENT: true,
+  USE_MOVEMENT_COMPONENT: true,
   USE_ANIMATION_COMPONENT: false,
   USE_HEALTH_COMPONENT: false,
   USE_SKILL_COMPONENT: false,

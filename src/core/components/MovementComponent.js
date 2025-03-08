@@ -23,9 +23,11 @@ export class MovementComponent extends Component {
     }
 
     const position = positionComponent.getPosition();
-    positionComponent.setPosition({
+    const newPosition = {
       x: position.x + this.velocity.x * seconds,
       y: position.y + this.velocity.y * seconds,
-    });
+    };
+
+    positionComponent.setPosition(newPosition);
   }
 }

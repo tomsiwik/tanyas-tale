@@ -19,15 +19,28 @@ Requirements:
 - Never add console.log
 - You can use console.debug only for failing tests and need to remove them after a passing test
 
+## Recent Improvements
+
+- [x] Fixed bot animation to use the correct running animation
+- [x] Improved bot movement state tracking for more consistent animations
+- [x] Fixed sprite rendering issues for Bot entities
+- [x] Resolved z-index layering to prevent health bars being hidden
+- [x] Enhanced container hierarchy with proper z-indexing
+- [x] Extended component system to Bot entities for consistent movement
+- [x] Fixed speed discrepancy between player and bot when using same speed value
+- [x] Updated movement speeds for more responsive gameplay
+  - [x] Player speed increased for better responsiveness
+  - [x] Bot speed balanced to maintain challenge
+
 ## Current Refactoring (Exception)
 
 - [x] Move position logic to component
 - [x] Move movement logic to component
-- [ ] Complete component integration
-  - [ ] Verify all existing game behaviors still work
-  - [ ] Remove duplicate position/movement code
-  - [ ] Clean up feature flag implementation
-  - [ ] Document component API
+- [x] Complete component integration
+  - [x] Verify all existing game behaviors still work
+  - [x] Remove duplicate position/movement code
+  - [x] Clean up feature flag implementation
+  - [x] Document component API
 
 ## Core Behaviors (In Priority Order)
 
