@@ -1,84 +1,50 @@
-# Tanya's Tale Refactoring Log
+# Tanya's Tale Behavior Log
 
-This is a living document tracking our refactoring progress using TDD and SOLID principles.
-Each task should be implemented with failing tests first, then implementation, and feature flags for safe rollback.
+This is a living document tracking behaviors we want to implement, following Kent Beck's TDD principles:
 
-## Core Architecture
+0. Review task list, pick a logical next step (behaviour)
+1. Write a small failing test for the behavior you picked (AAA - Arrange Act Assert)
+2. Make it pass with the simplest code possible
+3. Review your approach and check if you need to add more behaviours later
+4. Refactor only after tests pass (optional and only safe refactoring - e.g. using feature flags, wrapper functions with a new version until you can deprecate them with further refactoring)
 
-### Components
+Requirements:
 
-- [x] Base Component System
+- Each behavior must start with a failing test
+- Implementation should be the simplest possible solution
+- Refactoring is optional and only after tests pass
+- Feature flags for safe rollback of behaviors
+- No premature optimization or over-engineering
+- Never add comments & Remove comments whenever you see them
+- Never add console.log
+- You can use console.debug only for failing tests and need to remove them after a passing test
 
-  - [x] Abstract Component class
-  - [x] Entity component management
-  - [x] Feature flag system
+## Current Refactoring (Exception)
 
-- [x] Position Component
+- [x] Move position logic to component
+- [x] Move movement logic to component
+- [ ] Complete component integration
+  - [ ] Verify all existing game behaviors still work
+  - [ ] Remove duplicate position/movement code
+  - [ ] Clean up feature flag implementation
+  - [ ] Document component API
 
-  - [x] Basic position state
-  - [x] Get/Set position
-  - [x] Feature flag integration
-  - [x] Legacy compatibility
+## Core Behaviors (In Priority Order)
 
-- [x] Movement Component
+### Combat (Primary Gameplay)
 
-  - [x] Velocity handling
-  - [x] Position updates
-  - [x] Feature flag integration
-  - [x] Legacy compatibility
+- [ ] Proximity-based damage
+  - [ ] Damage scales with distance
+  - [ ] Visual feedback on damage
 
-- [ ] Animation Component
+### Bot Behavior (Enemy Challenge)
 
-  - [ ] Sprite state management
-  - [ ] Animation frame updates
-  - [ ] Direction-based animations
-  - [ ] Integration with SpriteManager
+- [ ] Keep minimum distance from player
+- [ ] Avoid overlapping with other bots
+- [ ] Vector-based repulsion movement
 
-- [ ] Health Component
+### Death Sequence
 
-  - [ ] Health state management
-  - [ ] Damage/Heal methods
-  - [ ] Death state handling
-  - [ ] Health regeneration
-
-- [ ] Skills Component
-
-  - [ ] Skill cooldown management
-  - [ ] Skill targeting
-  - [ ] Skill effects
-  - [ ] Skill animations
-
-- [ ] Effects Component
-  - [ ] Effect duration management
-  - [ ] Effect stacking
-  - [ ] Effect animations
-  - [ ] Status effects
-
-### Refactoring Tasks
-
-- [ ] Extract common vector operations into Vector2D utility
-- [ ] Create ComponentRegistry for type-safe component access
-- [ ] Add component dependency resolution
-- [ ] Implement component lifecycle hooks (init/destroy)
-- [ ] Add component event system
-
-### Performance Optimizations
-
-- [ ] Implement object pooling for frequently created/destroyed components
-- [ ] Add spatial partitioning for collision detection
-- [ ] Optimize animation frame updates
-- [ ] Add component update priority system
-
-### Testing
-
-- [ ] Add integration tests between components
-- [ ] Add performance benchmarks
-- [ ] Add stress tests for component system
-- [ ] Add memory leak detection tests
-
-## Notes
-
-- Each component should be independently toggleable via feature flags
-- All new features must have tests before implementation
-- Keep backward compatibility until features are stable
-- Document breaking changes and migration paths
+- [ ] Death animation
+  - [ ] Black square effect for 2 seconds
+  - [ ] Fade out over 1 second

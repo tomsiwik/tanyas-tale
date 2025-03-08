@@ -41,6 +41,7 @@ describe("Entity", () => {
   describe("movement handling", () => {
     it("should use legacy movement system when feature flag is off", () => {
       FeatureFlags.USE_MOVEMENT_COMPONENT = false;
+      FeatureFlags.USE_POSITION_COMPONENT = false;
       const entity = new Entity();
 
       entity.setVelocity(10, 5);
@@ -51,8 +52,10 @@ describe("Entity", () => {
 
     it("should use movement component when feature flag is on", () => {
       FeatureFlags.USE_MOVEMENT_COMPONENT = true;
+      FeatureFlags.USE_POSITION_COMPONENT = true;
       const entity = new Entity();
 
+      entity.setPosition(0, 0);
       entity.setVelocity(10, 5);
       entity.tick(1000);
 

@@ -1,13 +1,15 @@
 import { FeatureFlags } from "../core/feature-flags.js";
 import { PositionComponent } from "../core/components/PositionComponent.js";
 import { MovementComponent } from "../core/components/MovementComponent.js";
+import { Entity as CoreEntity } from "../core/entities/Entity.js";
 
 /**
- * Base Entity class that all game entities should extend
- * Provides a standardized interface for the game loop and skill system
+ * Game Entity class that extends the core Entity class
+ * Provides game-specific functionality and component management
  */
-export class Entity {
+export class Entity extends CoreEntity {
   constructor() {
+    super();
     this.skills = [];
     this.effects = [];
     this.x = 0;
@@ -20,10 +22,12 @@ export class Entity {
         x: this.x,
         y: this.y,
       });
+      this.addComponent("position", this.positionComponent);
     }
 
     if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
       this.movementComponent = new MovementComponent(this);
+      this.addComponent("movement", this.movementComponent);
     }
   }
 
@@ -35,6 +39,9 @@ export class Entity {
   tick(deltaTime, targets = []) {
     if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
       this.movementComponent.update(deltaTime);
+      const pos = this.getPosition();
+      this.x = pos.x;
+      this.y = pos.y;
     } else {
       this.x += this.velocityX * (deltaTime / 1000);
       this.y += this.velocityY * (deltaTime / 1000);
@@ -143,6 +150,11 @@ export class Entity {
     return true;
   }
 
+  /**
+   * Set the entity's velocity
+   * @param {number} x - The x velocity
+   * @param {number} y - The y velocity
+   */
   setVelocity(x, y) {
     if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
       this.movementComponent.setVelocity({ x, y });
@@ -151,10 +163,18 @@ export class Entity {
     this.velocityY = y;
   }
 
+  /**
+   * Get the entity's velocity
+   * @returns {Object} The entity's velocity {x, y}
+   */
   getVelocity() {
     if (FeatureFlags.USE_MOVEMENT_COMPONENT) {
       return this.movementComponent.getVelocity();
     }
     return { x: this.velocityX, y: this.velocityY };
+  }
+
+  addComponent(name, component) {
+    this.components.set(name, component);
   }
 }

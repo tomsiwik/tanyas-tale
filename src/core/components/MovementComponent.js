@@ -16,11 +16,16 @@ export class MovementComponent extends Component {
 
   update(deltaTime) {
     const seconds = deltaTime / 1000;
-    const position = this.entity.getPosition();
+    const positionComponent = this.entity.getComponent("position");
+    if (!positionComponent) {
+      console.warn("MovementComponent requires a PositionComponent");
+      return;
+    }
 
-    this.entity.setPosition(
-      position.x + this.velocity.x * seconds,
-      position.y + this.velocity.y * seconds
-    );
+    const position = positionComponent.getPosition();
+    positionComponent.setPosition({
+      x: position.x + this.velocity.x * seconds,
+      y: position.y + this.velocity.y * seconds,
+    });
   }
 }
